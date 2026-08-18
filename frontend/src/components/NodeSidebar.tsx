@@ -1,8 +1,10 @@
 /**
  * 右侧面板统一分派：
+ * - chat 节点 → ChatPanel（对话）
+ * - review 节点 → ReviewPanel（审核）
+ * - text 节点 → TextEditor（文本编辑）
+ * - code 节点 → CodeEditor（代码编辑）
  * - 分镜节点（editorHint='storyboard'）→ 双 Tab：💬对话 / 🎬分镜表
- * - chat 节点 → ChatPanel
- * - review 节点 → ReviewPanel
  * - 其他 → Inspector（属性面板）
  */
 import { useState } from 'react';
@@ -12,6 +14,8 @@ import { getNodeDef } from '../data/nodeDefs';
 import ChatPanel from './ChatPanel';
 import StoryboardEditor from './StoryboardEditor';
 import ReviewPanel from './ReviewPanel';
+import TextEditor from './TextEditor';
+import CodeEditor from './CodeEditor';
 import Inspector from './Inspector';
 import type { CanvasNodeData } from '../types';
 
@@ -49,5 +53,7 @@ export default function NodeSidebar({ node }: { node: Node<CanvasNodeData> }) {
 
   if (kind === 'chat') return <ChatPanel node={node} />;
   if (kind === 'review') return <ReviewPanel node={node} />;
+  if (kind === 'text') return <TextEditor node={node} />;
+  if (kind === 'code') return <CodeEditor node={node} />;
   return <Inspector />;
 }

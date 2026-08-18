@@ -71,7 +71,7 @@ class SessionManager:
                 return s
         return None
 
-    def get_or_create(self, node_id: str, node_type_id: str) -> ChatSession:
+    def get_or_create(self, node_id: str, node_type_id: str, node_data: dict | None = None) -> ChatSession:
         existing = self.by_node(node_id)
         if existing:
             return existing
@@ -79,12 +79,16 @@ class SessionManager:
         ndef = defs.get(node_type_id)
         if not ndef:
             raise ValueError(f"未知节点定义: {node_type_id}")
+        # 优先使用实例级 model/systemPrompt（node.data），回退到节点定义
+        nd = node_data or {}
+        model_ref = nd.get("model") or ndef.model or {}
+        system_prompt = nd.get("systemPrompt") or ndef.systemPrompt or ""
         s = ChatSession(
             id=f"cs-{uuid.uuid4().hex[:10]}",
             node_id=node_id,
             node_type_id=node_type_id,
-            system_prompt=ndef.systemPrompt or "",
-            model_ref=ndef.model or {},
+            system_prompt=system_prompt,
+            model_ref=model_ref,
         )
         self._sessions[s.id] = s
         return s

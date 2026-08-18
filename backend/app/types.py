@@ -15,7 +15,7 @@ ArtifactType = Literal[
     "Memory", "ModelRef", "Decision", "Table", "Data",
 ]
 
-NodeKind = Literal["chat", "generator", "asset", "table", "auto", "review", "memory"]
+NodeKind = Literal["chat", "generator", "asset", "table", "auto", "review", "memory", "code", "text"]
 
 #: 类型重命名迁移表（仿 LangFlow TYPE_MIGRATIONS）。重命名类型时在这里登记，旧画布不失效。
 TYPE_MIGRATIONS: dict[str, str] = {}
@@ -76,6 +76,9 @@ class NodeDef(BaseModel):
     onRejectNodeId: Optional[str] = None
     # table
     editorHint: Optional[str] = None
+    # 通用节点
+    dynamicPorts: bool = False
+    code: Optional[str] = None
 
 
 class GraphNode(BaseModel):

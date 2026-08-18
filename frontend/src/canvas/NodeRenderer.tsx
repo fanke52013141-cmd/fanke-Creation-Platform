@@ -1,50 +1,63 @@
 /**
  * 通用节点渲染器（schema 驱动，仿 LangFlow GenericNode）。
  * 根据 node-defs.json 的 inputs/outputs 自动渲染插口与参数字段。
- * 加新节点 = 只改 node-defs.json + 后端注册 build，此组件零改动。
+ * 动态端口节点（dynamicPorts=true）从 node.data.ports 读取端口定义。
  */
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import {
-  Archive,
-  Brain,
-  Clapperboard,
-  ClipboardCheck,
-  FolderOpen,
-  HelpCircle,
-  Image as ImageIcon,
-  Lightbulb,
-  Package,
-  Palette,
-  Wand2,
-  type LucideIcon,
+  Archive, Brain, Clapperboard, ClipboardCheck, FileText, FolderOpen,
+  HelpCircle, Image as ImageIcon, Lightbulb, MessageSquare, Package,
+  Palette, Terminal, Wand2, type LucideIcon,
 } from 'lucide-react';
 
 import { getNodeDef } from '../data/nodeDefs';
 import { inHandleId, outHandleId } from '../engine/connections';
-import type { CanvasNodeData, NodeKind } from '../types';
+import type { CanvasNodeData, InputPort, NodeKind, OutputPort } from '../types';
 
 const ICONS: Record<string, LucideIcon> = {
-  Lightbulb,
-  ClipboardCheck,
-  Palette,
-  Package,
-  Clapperboard,
-  Wand2,
-  ImageIcon,
-  Archive,
-  Brain,
-  FolderOpen,
+  Lightbulb, ClipboardCheck, Palette, Package, Clapperboard, Wand2,
+  ImageIcon, Archive, Brain, FolderOpen, MessageSquare, FileText, Terminal,
 };
 
 const KIND_LABELS: Record<NodeKind, string> = {
-  chat: '对话',
-  generator: '生成',
-  asset: '资产',
-  table: '表格',
-  auto: '自动',
-  review: '审查',
-  memory: '记忆',
+  chat: '对话', generator: '生成', asset: '资产', table: '表格',
+  auto: '自动', review: '审查', memory: '记忆', code: '代码', text: '文本',
 };
+
+function PortRow({ port, isInput }: { port: InputPort | OutputPort; isInput: boolean }) {
+  const p = port as unknown as Record<string, unknown>;
+  const name = p.name as string;
+  const label = (p.label as string) || name;
+  const type = p.type as string || '';
+  const isArray = p.array as boolean;
+  const isReq = p.required as boolean;
+  return (
+    <div className={`wf-port wf-port--${isInput ? 'in' : 'out'}`} key={name}>
+      {isInput && (
+        <Handle
+          type="target"
+          position={Position.Left}
+          id={inHandleId(name)}
+          className="wf-handle"
+        />
+      )}
+      <span className="wf-port__name">{label}</span>
+      {isArray && <span className="wf-port__badge">[]</span>}
+      {isReq && <span className="wf-port__badge wf-port__badge--req">必填</span>}
+      {!isInput && (
+        <>
+          <span className="wf-port__type">{type}</span>
+          <Handle
+            type="source"
+            position={Position.Right}
+            id={outHandleId(name)}
+            className="wf-handle"
+          />
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function NodeRenderer({ data, selected }: NodeProps<Node<CanvasNodeData>>) {
   const def = getNodeDef(data.nodeTypeId);
@@ -53,6 +66,14 @@ export default function NodeRenderer({ data, selected }: NodeProps<Node<CanvasNo
   }
   const Icon = ICONS[def.icon ?? ''] ?? HelpCircle;
   const params = (data.params ?? {}) as Record<string, unknown>;
+
+  // 抑制 params 未使用警告（后续用于显示参数值）
+  void params;
+
+  // 动态端口：从 data.ports 读取
+  const ports = data.ports as { inputs?: InputPort[]; outputs?: OutputPort[] } | undefined;
+  const inputPorts = def.dynamicPorts ? (ports?.inputs ?? []) : def.inputs;
+  const outputPorts = def.dynamicPorts ? (ports?.outputs ?? []) : def.outputs;
 
   return (
     <div className={`wf-node wf-node--${def.kind}${selected ? ' is-selected' : ''}`}>
@@ -66,46 +87,21 @@ export default function NodeRenderer({ data, selected }: NodeProps<Node<CanvasNo
 
       <div className="wf-node__ports">
         <div className="wf-node__inputs">
-          {def.inputs.map((port) =>
-            port.isConnection ? (
-              <div className="wf-port wf-port--in" key={port.name}>
-                <Handle
-                  type="target"
-                  position={Position.Left}
-                  id={inHandleId(port.name)}
-                  className="wf-handle"
-                />
-                <span className="wf-port__name">{port.label || port.name}</span>
-                {port.array && <span className="wf-port__badge">[]</span>}
-                {port.required && <span className="wf-port__badge wf-port__badge--req">必填</span>}
-              </div>
-            ) : (
-              <div className="wf-port wf-port--in wf-port--param" key={port.name}>
-                <span className="wf-port__name">{port.label || port.name}</span>
-                <span className="wf-port__val">
-                  {String(params[port.name] ?? port.defaultValue ?? '') || '—'}
-                </span>
-              </div>
-            ),
+          {inputPorts.length === 0 && !def.dynamicPorts && (
+            <div className="wf-port wf-port--in" style={{ color: '#a0a6b6', fontSize: 11 }}>
+              无输入
+            </div>
           )}
+          {inputPorts.map((port) => <PortRow key={port.name} port={port} isInput />)}
         </div>
 
         <div className="wf-node__outputs">
-          {def.outputs.map((port) => (
-            <div className="wf-port wf-port--out" key={port.name}>
-              <span className="wf-port__name">{port.label || port.name}</span>
-              <span className="wf-port__type">
-                {port.type}
-                {port.array ? '[]' : ''}
-              </span>
-              <Handle
-                type="source"
-                position={Position.Right}
-                id={outHandleId(port.name)}
-                className="wf-handle"
-              />
+          {outputPorts.length === 0 && !def.dynamicPorts && (
+            <div className="wf-port wf-port--out" style={{ color: '#a0a6b6', fontSize: 11 }}>
+              无输出
             </div>
-          ))}
+          )}
+          {outputPorts.map((port) => <PortRow key={port.name} port={port} isInput={false} />)}
         </div>
       </div>
     </div>

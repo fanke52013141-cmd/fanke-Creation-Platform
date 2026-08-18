@@ -5,6 +5,18 @@ import type { ExecutionResult, GraphPayload, NodeDef } from './types';
 
 const BASE = '/api';
 
+export interface TemplateDef {
+  id: string;
+  name: string;
+  description: string;
+  nodes: Array<{ id: string; nodeTypeId: string; position: { x: number; y: number }; data: Record<string, unknown> }>;
+  edges: Array<{ source: string; sourcePort: string; target: string; targetPort: string; via: string }>;
+}
+
+export async function fetchTemplates(): Promise<{ templates: TemplateDef[] }> {
+  return jsonFetch('/templates');
+}
+
 async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -65,10 +77,11 @@ export interface ChatSessionInfo {
 export async function createChatSession(
   nodeId: string,
   nodeTypeId: string,
+  nodeData?: Record<string, unknown>,
 ): Promise<ChatSessionInfo> {
   return jsonFetch('/chat/sessions', {
     method: 'POST',
-    body: JSON.stringify({ nodeId, nodeTypeId }),
+    body: JSON.stringify({ nodeId, nodeTypeId, nodeData }),
   });
 }
 

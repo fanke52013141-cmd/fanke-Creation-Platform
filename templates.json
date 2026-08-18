@@ -1,0 +1,194 @@
+{
+  "version": "2.0.0",
+  "templates": [
+    {
+      "id": "ad-video-9step",
+      "name": "广告视频制作（9步流程）",
+      "description": "完整的广告视频创作流程：创意策略→审查→视觉方向→资产计划→分镜→分镜审查→提示词→图片生成→打包",
+      "nodes": [
+        {
+          "id": "creative-strategy",
+          "nodeTypeId": "chat",
+          "name": "创意策略",
+          "position": { "x": 50, "y": 50 },
+          "data": {
+            "systemPrompt": "你是资深广告创意策略师。用五步脑洞法产出 3 条差异化创意方案，最终定稿为 brief.md（创意简报）与 story.md（剧本）。不写分镜、不写生成提示词。",
+            "model": { "providerId": "wechat", "modelId": "Deepseek-v4-flash", "variant": "high" },
+            "ports": {
+              "inputs": [
+                { "name": "memory", "label": "对话记忆", "type": "Memory", "isConnection": true, "required": false }
+              ],
+              "outputs": [
+                { "name": "brief", "label": "创意简报", "type": "Document", "provides": ["brief"] },
+                { "name": "story", "label": "剧本", "type": "Document", "provides": ["story"] }
+              ]
+            }
+          }
+        },
+        {
+          "id": "creative-review",
+          "nodeTypeId": "review",
+          "name": "创意审查",
+          "position": { "x": 50, "y": 200 },
+          "data": {
+            "onRejectNodeId": "creative-strategy",
+            "ports": {
+              "inputs": [
+                { "name": "brief", "label": "创意简报", "type": "Document", "isConnection": true, "required": true, "accepts": ["brief"] },
+                { "name": "story", "label": "剧本", "type": "Document", "isConnection": true, "required": false, "accepts": ["story"] }
+              ],
+              "outputs": [
+                { "name": "decision", "label": "审批结论", "type": "Decision", "provides": ["decision"] }
+              ]
+            }
+          }
+        },
+        {
+          "id": "visual-direction",
+          "nodeTypeId": "chat",
+          "name": "视觉方向",
+          "position": { "x": 350, "y": 50 },
+          "data": {
+            "systemPrompt": "你是资深广告视觉总监。基于创意简报产出视觉方向文档 styleBible：色彩基调、构图风格、参考意象、角色形象设定、场景氛围。不写分镜、不写生成提示词。",
+            "model": { "providerId": "wechat", "modelId": "Deepseek-v4-flash", "variant": "high" },
+            "ports": {
+              "inputs": [
+                { "name": "brief", "label": "创意简报", "type": "Document", "isConnection": true, "required": true, "accepts": ["brief"] }
+              ],
+              "outputs": [
+                { "name": "styleBible", "label": "视觉风格圣经", "type": "Document", "provides": ["styleBible"] }
+              ]
+            }
+          }
+        },
+        {
+          "id": "asset-plan",
+          "nodeTypeId": "chat",
+          "name": "资产计划",
+          "position": { "x": 350, "y": 200 },
+          "data": {
+            "systemPrompt": "你是广告制片人。基于创意简报与视觉风格圣经，产出结构化资产清单（Table）：所需素材、类型（图/音/视频）、用途、规格、来源。以表格 JSON 输出。",
+            "model": { "providerId": "wechat", "modelId": "Deepseek-v4-flash", "variant": "medium" },
+            "ports": {
+              "inputs": [
+                { "name": "brief", "label": "创意简报", "type": "Document", "isConnection": true, "required": true, "accepts": ["brief"] },
+                { "name": "styleBible", "label": "视觉风格圣经", "type": "Document", "isConnection": true, "required": false, "accepts": ["styleBible"] }
+              ],
+              "outputs": [
+                { "name": "assetPlan", "label": "资产清单", "type": "Table", "provides": ["assetPlan"] }
+              ]
+            }
+          }
+        },
+        {
+          "id": "storyboard",
+          "nodeTypeId": "chat",
+          "name": "分镜",
+          "position": { "x": 650, "y": 50 },
+          "data": {
+            "systemPrompt": "你是资深分镜师。基于创意简报与视觉风格圣经，产出结构化分镜表：每个镜头含 序号/时长/画面描述/动作/机位/对白/广告文字。以表格 JSON 输出，镜头间保持角色与场景连续性。",
+            "model": { "providerId": "wechat", "modelId": "Deepseek-v4-flash", "variant": "xhigh" },
+            "editorHint": "storyboard",
+            "ports": {
+              "inputs": [
+                { "name": "brief", "label": "创意简报", "type": "Document", "isConnection": true, "required": true, "accepts": ["brief"] },
+                { "name": "styleBible", "label": "视觉风格圣经", "type": "Document", "isConnection": true, "required": false, "accepts": ["styleBible"] },
+                { "name": "assetPlan", "label": "资产清单", "type": "Table", "isConnection": true, "required": false, "accepts": ["assetPlan"] }
+              ],
+              "outputs": [
+                { "name": "storyboard", "label": "分镜表", "type": "Table", "provides": ["storyboard"] }
+              ]
+            }
+          }
+        },
+        {
+          "id": "storyboard-review",
+          "nodeTypeId": "review",
+          "name": "分镜审查",
+          "position": { "x": 650, "y": 200 },
+          "data": {
+            "onRejectNodeId": "storyboard",
+            "ports": {
+              "inputs": [
+                { "name": "storyboard", "label": "分镜表", "type": "Table", "isConnection": true, "required": true, "accepts": ["storyboard"] }
+              ],
+              "outputs": [
+                { "name": "decision", "label": "审批结论", "type": "Decision", "provides": ["decision"] }
+              ]
+            }
+          }
+        },
+        {
+          "id": "prompt-builder",
+          "nodeTypeId": "code",
+          "name": "分镜提示词",
+          "position": { "x": 950, "y": 50 },
+          "data": {
+            "code": "# 分镜表 → 提示词包\nimport json\n\nsb = inputs.get('storyboard', {})\nrows = sb.get('rows', [])\nstyle_bible = inputs.get('styleBible', {})\n\npackets = []\nfor i, row in enumerate(rows):\n    desc = row.get('sceneDescription') or row.get('description') or ''\n    packets.append({\n        'index': i,\n        'text': f'广告分镜 {i+1}：{desc}',\n        'negativePrompt': '',\n        'variables': {'shotIndex': i},\n        'seed': row.get('seed')\n    })\n\noutput = {'packets': packets}",
+            "ports": {
+              "inputs": [
+                { "name": "storyboard", "label": "分镜表", "type": "Table", "isConnection": true, "required": true, "accepts": ["storyboard"] },
+                { "name": "styleBible", "label": "视觉风格圣经", "type": "Document", "isConnection": true, "required": false, "accepts": ["styleBible"] }
+              ],
+              "outputs": [
+                { "name": "packets", "label": "提示词包", "type": "Prompt", "array": true, "provides": ["packets"] }
+              ]
+            }
+          }
+        },
+        {
+          "id": "image-generator",
+          "nodeTypeId": "code",
+          "name": "图片生成",
+          "position": { "x": 950, "y": 200 },
+          "data": {
+            "code": "# 图片生成（调用 API）\nimport requests\nimport os\n\npackets = inputs.get('packets', [])\n\napi_key = os.environ.get('OPENAI_API_KEY', '')\nbase_url = os.environ.get('OPENAI_BASE_URL', 'https://www.codex2api.com/v1')\n\nimages = []\nfor p in packets:\n    prompt = p.get('text', '')\n    if not prompt:\n        continue\n    resp = requests.post(\n        f'{base_url}/images/generations',\n        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},\n        json={'model': 'gpt-image-1', 'prompt': prompt, 'n': 1, 'size': '1024x1024', 'response_format': 'url'},\n        timeout=120\n    )\n    if resp.ok:\n        data = resp.json()\n        for item in data.get('data', []):\n            images.append({'url': item.get('url', ''), 'width': 1024, 'height': 1024, 'mime': 'image/png'})\n    else:\n        images.append({'url': '', 'width': 0, 'height': 0, 'mime': 'text/plain', 'error': f'HTTP {resp.status_code}'})\n\noutput = {'images': images, 'seed': {'seed': 0}}",
+            "ports": {
+              "inputs": [
+                { "name": "packets", "label": "提示词包", "type": "Prompt", "isConnection": true, "array": true, "required": true, "accepts": ["packets"] }
+              ],
+              "outputs": [
+                { "name": "images", "label": "生成图片", "type": "Image", "array": true, "provides": ["image"] },
+                { "name": "seed", "label": "确定性参数", "type": "Data", "provides": ["seed"] }
+              ]
+            }
+          }
+        },
+        {
+          "id": "package",
+          "nodeTypeId": "code",
+          "name": "打包",
+          "position": { "x": 1250, "y": 50 },
+          "data": {
+            "code": "# 打包交付\nimport json\n\nsb = inputs.get('storyboard', {})\nimages = inputs.get('images', [])\n\nrows = sb.get('rows', [])\nlines = ['# 交付包', '', f'- 镜头数：{len(rows)}', f'- 图片数：{len(images)}', '']\nfor i, row in enumerate(rows):\n    lines.append(f'## 镜头 {i+1}')\n    lines.append(f'- 画面描述：{row.get(\"sceneDescription\", \"\")}')\n    lines.append(f'- 对白：{row.get(\"dialogue\", \"\") or \"—\"}')\n    lines.append('')\n\noutput = {\n    'package': {\n        'id': 'pkg',\n        'title': '交付包',\n        'markdown': '\\n'.join(lines)\n    }\n}",
+            "ports": {
+              "inputs": [
+                { "name": "storyboard", "label": "分镜表", "type": "Table", "isConnection": true, "required": true, "accepts": ["storyboard"] },
+                { "name": "images", "label": "生成图片", "type": "Image", "isConnection": true, "array": true, "required": false, "accepts": ["image"] }
+              ],
+              "outputs": [
+                { "name": "package", "label": "交付包", "type": "Document", "provides": ["package"] }
+              ]
+            }
+          }
+        }
+      ],
+      "edges": [
+        { "source": "creative-strategy", "sourcePort": "brief", "target": "creative-review", "targetPort": "brief", "via": "Document" },
+        { "source": "creative-strategy", "sourcePort": "story", "target": "creative-review", "targetPort": "story", "via": "Document" },
+        { "source": "creative-strategy", "sourcePort": "brief", "target": "visual-direction", "targetPort": "brief", "via": "Document" },
+        { "source": "creative-strategy", "sourcePort": "brief", "target": "asset-plan", "targetPort": "brief", "via": "Document" },
+        { "source": "visual-direction", "sourcePort": "styleBible", "target": "asset-plan", "targetPort": "styleBible", "via": "Document" },
+        { "source": "creative-strategy", "sourcePort": "brief", "target": "storyboard", "targetPort": "brief", "via": "Document" },
+        { "source": "visual-direction", "sourcePort": "styleBible", "target": "storyboard", "targetPort": "styleBible", "via": "Document" },
+        { "source": "asset-plan", "sourcePort": "assetPlan", "target": "storyboard", "targetPort": "assetPlan", "via": "Table" },
+        { "source": "storyboard", "sourcePort": "storyboard", "target": "storyboard-review", "targetPort": "storyboard", "via": "Table" },
+        { "source": "storyboard", "sourcePort": "storyboard", "target": "prompt-builder", "targetPort": "storyboard", "via": "Table" },
+        { "source": "visual-direction", "sourcePort": "styleBible", "target": "prompt-builder", "targetPort": "styleBible", "via": "Document" },
+        { "source": "prompt-builder", "sourcePort": "packets", "target": "image-generator", "targetPort": "packets", "via": "Prompt" },
+        { "source": "storyboard", "sourcePort": "storyboard", "target": "package", "targetPort": "storyboard", "via": "Table" },
+        { "source": "image-generator", "sourcePort": "images", "target": "package", "targetPort": "images", "via": "Image" }
+      ]
+    }
+  ]
+}

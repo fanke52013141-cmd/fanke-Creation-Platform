@@ -50,6 +50,19 @@ async def nodes() -> dict:
     }
 
 
+@app.get("/api/templates")
+async def templates() -> dict:
+    """返回模板列表（预置的流程模板，如一键加载广告制作流程）。"""
+    import json
+    from pathlib import Path
+
+    p = Path(__file__).resolve().parents[2] / "templates.json"
+    if p.exists():
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    return {"templates": []}
+
+
 class ConnectionCheck(BaseModel):
     sourceTypeId: str
     sourceHandle: str
@@ -88,6 +101,7 @@ async def execute_graph(graph: Graph) -> dict:
 class ChatSessionCreate(BaseModel):
     nodeId: str
     nodeTypeId: str
+    nodeData: dict | None = None
 
 
 class ChatMessageSend(BaseModel):
@@ -98,7 +112,7 @@ class ChatMessageSend(BaseModel):
 async def create_chat_session(req: ChatSessionCreate) -> dict:
     """按画布节点实例创建/获取会话（幂等）。"""
     try:
-        s = sessions.get_or_create(req.nodeId, req.nodeTypeId)
+        s = sessions.get_or_create(req.nodeId, req.nodeTypeId, req.nodeData)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {

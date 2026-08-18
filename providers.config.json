@@ -1,6 +1,14 @@
 {
   "chat": [
     {
+      "id": "wechat",
+      "baseURL": "https://chatapi.weixin.qq.com/openai/v1",
+      "apiKeyEnv": "WEIXIN_OPENAI_TOKEN",
+      "models": [
+        { "id": "Deepseek-v4-flash", "name": "Deepseek V4 Flash", "context": 128000, "output": 8192 }
+      ]
+    },
+    {
       "id": "codex2api",
       "baseURL": "https://www.codex2api.com/v1",
       "apiKeyEnv": "OPENAI_API_KEY",

@@ -12,7 +12,7 @@ interface ChatState {
   loading: boolean;
   error: string | null;
 
-  openChat: (nodeId: string, nodeTypeId: string) => Promise<void>;
+  openChat: (nodeId: string, nodeTypeId: string, nodeData?: Record<string, unknown>) => Promise<void>;
   closeChat: () => void;
   send: (content: string) => Promise<void>;
 }
@@ -25,12 +25,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loading: false,
   error: null,
 
-  openChat: async (nodeId, nodeTypeId) => {
+  openChat: async (nodeId, nodeTypeId, nodeData) => {
     // 同一节点重复点击不重建会话
     if (get().nodeId === nodeId && get().sessionId) return;
     set({ nodeId, messages: [], products: {}, error: null, loading: true });
     try {
-      const info = await createChatSession(nodeId, nodeTypeId);
+      const info = await createChatSession(nodeId, nodeTypeId, nodeData);
       set({ sessionId: info.sessionId, messages: info.messages, products: info.products });
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) });

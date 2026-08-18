@@ -73,22 +73,88 @@ class MockImageBackend:
 
 
 class RealImageBackend:
-    """真实生成（预留）：OpenAI 兼容 /images/generations。
-
-    依赖 openai 库；provider 配置见 providers.config.json 的 image 段。
-    未实现时抛出明确错误，避免静默失败。
-    """
+    """真实生成：OpenAI 兼容 /images/generations（如 codex2api 的 gpt-image-1）。"""
 
     def __init__(self, provider_id: str, model_id: str) -> None:
         self.provider_id = provider_id
         self.model_id = model_id
+        from .registry import find_chat_provider
+
+        provider = find_chat_provider(provider_id)
+        if not provider:
+            raise ValueError(f"未配置 image provider: {provider_id}")
+        cfg = provider.resolve()
+        self._api_key = cfg["api_key"]
+        self._base_url = cfg["base_url"]
 
     def generate(self, prompt: str, opts: dict[str, Any]) -> list[dict[str, Any]]:
-        # TODO(P2.5)：接入 openai.images.generate 或各家私有接口（jimeng/kling/replicate/comfyui）
-        raise NotImplementedError(
-            "真实图片生成尚未接入：请配置 OPENAI_API_KEY 并在 providers.config.json 的 image 段启用，"
-            "或继续使用 Mock 模式。"
+        import requests
+
+        from ..artifacts import asset_store, new_asset_id
+
+        width, height = _aspect_size(opts.get("aspectRatio"), base=1024)
+        num = int(opts.get("num", 1))
+        seed = opts.get("seed")
+
+        payload = {
+            "model": self.model_id,
+            "prompt": prompt,
+            "n": num,
+            "size": f"{width}x{height}",
+            "response_format": "b64_json",
+        }
+        if seed is not None:
+            payload["seed"] = seed
+
+        resp = requests.post(
+            f"{self._base_url.rstrip('/')}/images/generations",
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=120,
         )
+        resp.raise_for_status()
+        data = resp.json()
+
+        results = []
+        for i, item in enumerate(data.get("data", [])):
+            b64 = item.get("b64_json")
+            if b64:
+                import base64
+
+                content = base64.b64decode(b64)
+            else:
+                url = item.get("url")
+                if url:
+                    img_resp = requests.get(url, timeout=30)
+                    img_resp.raise_for_status()
+                    content = img_resp.content
+                else:
+                    continue
+
+            asset_id = new_asset_id("im")
+            width = item.get("width", width)
+            height = item.get("height", height)
+            mime = "image/png"
+            version = asset_store.create_revision(
+                asset_id,
+                content,
+                mime,
+                source={"provider": self.provider_id, "model": self.model_id, "prompt": prompt, "opts": opts},
+                width=width,
+                height=height,
+            )
+            results.append({
+                "id": asset_id,
+                "url": version.url,
+                "width": width,
+                "height": height,
+                "mime": mime,
+                "rev": version.rev,
+            })
+        return results
 
 
 def get_image_backend(provider_id: str, model_id: str) -> ImageGenBackend:

@@ -1,9 +1,9 @@
 /**
- * 顶部工具栏：自动连线 / 执行画布 / 保存加载 / 清空。
+ * 顶部工具栏：自动连线 / 执行画布 / 保存加载 / 模板 / 清空。
  */
-import { useCallback } from 'react';
-import { Download, Loader2, Play, Save, Trash2, Upload, Wand2 } from 'lucide-react';
-import { executeGraph } from '../api';
+import { useCallback, useState } from 'react';
+import { Download, LayoutTemplate, Loader2, Play, Save, Trash2, Upload, Wand2 } from 'lucide-react';
+import { executeGraph, fetchTemplates, type TemplateDef } from '../api';
 import { useCanvasStore } from '../store';
 
 const STORAGE_KEY = 'wf-canvas-project';
@@ -19,6 +19,8 @@ export default function Toolbar() {
   const setIsExecuting = useCanvasStore((s) => s.setIsExecuting);
   const setExecResults = useCanvasStore((s) => s.setExecResults);
   const setExecError = useCanvasStore((s) => s.setExecError);
+  const [templates, setTemplates] = useState<TemplateDef[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const handleRun = useCallback(async () => {
     if (isExecuting) return;
@@ -90,6 +92,40 @@ export default function Toolbar() {
     input.click();
   }, [loadProject, setExecError]);
 
+  const handleTemplates = useCallback(async () => {
+    if (templates.length > 0) {
+      setShowTemplates(!showTemplates);
+      return;
+    }
+    try {
+      const res = await fetchTemplates();
+      setTemplates(res.templates);
+      setShowTemplates(true);
+    } catch (e) {
+      setExecError(e instanceof Error ? e.message : String(e));
+    }
+  }, [templates, setExecError, showTemplates]);
+
+  const loadTemplate = useCallback(
+    (tpl: TemplateDef) => {
+      const rNodes = tpl.nodes.map((n) => ({
+        ...n,
+        type: 'generic',
+        data: { ...n.data, nodeTypeId: n.nodeTypeId },
+      }));
+      const rEdges = tpl.edges.map((e, i) => ({
+        id: `e-tpl-${i}`,
+        source: e.source,
+        sourceHandle: `out-${e.sourcePort}`,
+        target: e.target,
+        targetHandle: `in-${e.targetPort}`,
+      }));
+      loadProject(rNodes as any, rEdges as any);
+      setShowTemplates(false);
+    },
+    [loadProject],
+  );
+
   return (
     <header className="toolbar">
       <div className="toolbar__brand">🎬 无限画布</div>
@@ -101,6 +137,26 @@ export default function Toolbar() {
           {isExecuting ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
           {isExecuting ? '执行中…' : '执行画布'}
         </button>
+        <span className="toolbar__sep" />
+        <button className="btn" onClick={handleTemplates} title="从模板开始">
+          <LayoutTemplate size={14} /> 模板
+        </button>
+        {showTemplates && (
+          <div className="toolbar__tpl-dropdown">
+            {templates.length === 0 && <div className="toolbar__tpl-item">无可用模板</div>}
+            {templates.map((tpl) => (
+              <button
+                key={tpl.id}
+                className="toolbar__tpl-item"
+                onClick={() => loadTemplate(tpl)}
+              >
+                <strong>{tpl.name}</strong>
+                <br />
+                <small>{tpl.description}</small>
+              </button>
+            ))}
+          </div>
+        )}
         <span className="toolbar__sep" />
         <button className="btn" onClick={handleSave} title="保存到本地（.json 文件下载 + localStorage）">
           <Save size={14} /> 保存

@@ -1,185 +1,56 @@
 {
-  "version": "1.3.0",
+  "version": "2.0.0",
   "artifactTypes": [
     "Message", "Document", "Prompt", "Shot", "Image", "Audio", "Video",
     "Memory", "ModelRef", "Decision", "Table", "Data"
   ],
   "nodes": [
     {
-      "id": "creative-strategy",
+      "id": "chat",
       "kind": "chat",
-      "name": "创意策略",
-      "icon": "Lightbulb",
-      "description": "角色化对话：产出创意简报 brief 与剧本 story 两份文档",
-      "systemPrompt": "你是资深广告创意策略师。用五步脑洞法产出 3 条差异化创意方案，最终定稿为 brief.md（创意简报）与 story.md（剧本）。不写分镜、不写生成提示词。",
-      "model": { "providerId": "codex2api", "modelId": "gpt-5.6-sol", "variant": "high" },
+      "name": "对话",
+      "icon": "MessageSquare",
+      "description": "通用对话节点。靠系统提示词驱动，可动态配置输入输出端口。",
+      "dynamicPorts": true,
       "allowUpload": true,
-      "inputs": [
-        { "name": "memory", "label": "对话记忆", "type": "Memory", "isConnection": true, "accepts": ["memory"], "required": false, "description": "可选：接入对话历史" },
-        { "name": "refs", "label": "参考文档", "type": "Document", "isConnection": true, "array": true, "accepts": ["refs"], "required": false, "description": "可选：品牌资料/参考文档" }
-      ],
-      "outputs": [
-        { "name": "brief", "label": "创意简报", "type": "Document", "provides": ["brief"] },
-        { "name": "story", "label": "剧本", "type": "Document", "provides": ["story"] }
-      ]
+      "inputs": [],
+      "outputs": []
     },
     {
-      "id": "creative-review",
+      "id": "review",
       "kind": "review",
-      "name": "创意审查",
+      "name": "审核",
       "icon": "ClipboardCheck",
-      "description": "审批门禁：审核创意方案，驳回时回流到创意策略",
-      "onRejectNodeId": "creative-strategy",
-      "inputs": [
-        { "name": "brief", "label": "创意简报", "type": "Document", "isConnection": true, "accepts": ["brief"], "required": true },
-        { "name": "story", "label": "剧本", "type": "Document", "isConnection": true, "accepts": ["story"], "required": false }
-      ],
-      "outputs": [
-        { "name": "decision", "label": "审批结论", "type": "Decision", "provides": ["decision"] }
-      ]
-    },
-    {
-      "id": "visual-direction",
-      "kind": "chat",
-      "name": "视觉方向",
-      "icon": "Palette",
-      "description": "角色化对话：基于简报产出视觉风格圣经 styleBible",
-      "systemPrompt": "你是资深广告视觉总监。基于创意简报产出视觉方向文档 styleBible：色彩基调、构图风格、参考意象、角色形象设定、场景氛围。不写分镜、不写生成提示词。",
-      "model": { "providerId": "codex2api", "modelId": "gpt-5.6-sol", "variant": "high" },
-      "allowUpload": true,
-      "inputs": [
-        { "name": "brief", "label": "创意简报", "type": "Document", "isConnection": true, "accepts": ["brief"], "required": true },
-        { "name": "refs", "label": "参考图/文档", "type": "Document", "isConnection": true, "array": true, "accepts": ["refs"], "required": false }
-      ],
-      "outputs": [
-        { "name": "styleBible", "label": "视觉风格圣经", "type": "Document", "provides": ["styleBible"] }
-      ]
-    },
-    {
-      "id": "asset-plan",
-      "kind": "chat",
-      "name": "资产计划",
-      "icon": "Package",
-      "description": "角色化对话：产出需要制作/采购的资产清单 assetPlan",
-      "systemPrompt": "你是广告制片人。基于创意简报与视觉风格圣经，产出结构化资产清单（Table）：所需素材、类型（图/音/视频）、用途、规格、来源。以表格 JSON 输出。",
-      "model": { "providerId": "codex2api", "modelId": "gpt-5.6-sol", "variant": "medium" },
-      "allowUpload": false,
-      "inputs": [
-        { "name": "brief", "label": "创意简报", "type": "Document", "isConnection": true, "accepts": ["brief"], "required": true },
-        { "name": "styleBible", "label": "视觉风格圣经", "type": "Document", "isConnection": true, "accepts": ["styleBible"], "required": false }
-      ],
-      "outputs": [
-        { "name": "assetPlan", "label": "资产清单", "type": "Table", "provides": ["assetPlan"] }
-      ]
-    },
-    {
-      "id": "storyboard",
-      "kind": "chat",
-      "name": "分镜",
-      "icon": "Clapperboard",
-      "description": "角色化对话：产出结构化分镜表 storyboard（镜头序列）",
-      "systemPrompt": "你是资深分镜师。基于创意简报与视觉风格圣经，产出结构化分镜表：每个镜头含 序号/时长/画面描述/动作/机位/对白/广告文字。以表格 JSON 输出，镜头间保持角色与场景连续性。",
-      "model": { "providerId": "codex2api", "modelId": "gpt-5.6-sol", "variant": "xhigh" },
-      "allowUpload": false,
-      "editorHint": "storyboard",
-      "inputs": [
-        { "name": "brief", "label": "创意简报", "type": "Document", "isConnection": true, "accepts": ["brief"], "required": true },
-        { "name": "styleBible", "label": "视觉风格圣经", "type": "Document", "isConnection": true, "accepts": ["styleBible"], "required": false },
-        { "name": "assetPlan", "label": "资产清单", "type": "Table", "isConnection": true, "accepts": ["assetPlan"], "required": false }
-      ],
-      "outputs": [
-        { "name": "storyboard", "label": "分镜表", "type": "Table", "provides": ["storyboard"] }
-      ]
-    },
-    {
-      "id": "storyboard-review",
-      "kind": "review",
-      "name": "分镜审查",
-      "icon": "ClipboardCheck",
-      "description": "审批门禁：审核分镜表，驳回时回流到分镜节点",
-      "onRejectNodeId": "storyboard",
-      "inputs": [
-        { "name": "storyboard", "label": "分镜表", "type": "Table", "isConnection": true, "accepts": ["storyboard"], "required": true }
-      ],
-      "outputs": [
-        { "name": "decision", "label": "审批结论", "type": "Decision", "provides": ["decision"] }
-      ]
-    },
-    {
-      "id": "prompt-builder",
-      "kind": "auto",
-      "name": "分镜提示词",
-      "icon": "Wand2",
-      "description": "确定性变换：把分镜表 + 风格圣经合成为每镜的图片生成提示词包",
-      "fn": "build_storyboard_packets",
-      "inputs": [
-        { "name": "storyboard", "label": "分镜表", "type": "Table", "isConnection": true, "accepts": ["storyboard"], "required": true },
-        { "name": "styleBible", "label": "视觉风格圣经", "type": "Document", "isConnection": true, "accepts": ["styleBible"], "required": false }
-      ],
-      "outputs": [
-        { "name": "packets", "label": "提示词包", "type": "Prompt", "array": true, "provides": ["packets"] }
-      ]
-    },
-    {
-      "id": "image-generator",
-      "kind": "generator",
-      "name": "图片生成",
-      "icon": "ImageIcon",
-      "description": "按提示词包逐镜生成图片（走中转站 / 已配置图片 provider）",
-      "modality": "image",
-      "providerId": "codex2api",
-      "modelId": "gpt-image-1",
-      "params": { "aspectRatio": "16:9", "num": 1 },
-      "inputs": [
-        { "name": "packets", "label": "提示词包", "type": "Prompt", "isConnection": true, "array": true, "accepts": ["packets"], "required": true },
-        { "name": "seed", "label": "确定性参数", "type": "Data", "isConnection": true, "accepts": ["seed"], "required": false, "description": "可选：复用上游 seed 保持一致性" }
-      ],
-      "outputs": [
-        { "name": "images", "label": "生成图片", "type": "Image", "array": true, "provides": ["image"] },
-        { "name": "seed", "label": "确定性参数", "type": "Data", "provides": ["seed"] }
-      ]
-    },
-    {
-      "id": "package",
-      "kind": "auto",
-      "name": "打包",
-      "icon": "Archive",
-      "description": "确定性变换：把分镜表 + 生成图片整理成交付包（文档 + 图清单）",
-      "fn": "package_output",
-      "inputs": [
-        { "name": "storyboard", "label": "分镜表", "type": "Table", "isConnection": true, "accepts": ["storyboard"], "required": true },
-        { "name": "images", "label": "生成图片", "type": "Image", "isConnection": true, "array": true, "accepts": ["image"], "required": false }
-      ],
-      "outputs": [
-        { "name": "package", "label": "交付包", "type": "Document", "provides": ["package"] }
-      ]
-    },
-    {
-      "id": "asset-library",
-      "kind": "asset",
-      "name": "资产库",
-      "icon": "FolderOpen",
-      "description": "被动持有图片等媒体资产，版本化；上游图片可登记为新资产",
-      "mediaType": "image",
-      "inputs": [
-        { "name": "images", "label": "图片", "type": "Image", "isConnection": true, "array": true, "accepts": ["image"], "required": false }
-      ],
-      "outputs": [
-        { "name": "head", "label": "资产（最新版）", "type": "Image", "array": true, "provides": ["image"] }
-      ]
-    },
-    {
-      "id": "memory",
-      "kind": "memory",
-      "name": "记忆",
-      "icon": "Brain",
-      "description": "共享对话上下文：retrieve 模式向多个 Chat 节点提供同一段对话记忆",
-      "mode": "retrieve",
-      "backend": "ephemeral",
+      "description": "审批节点。审核上游产出，通过或驳回。",
+      "dynamicPorts": true,
       "inputs": [],
       "outputs": [
-        { "name": "memory", "label": "对话记忆", "type": "Memory", "provides": ["memory"] }
+        { "name": "decision", "label": "审批结论", "type": "Decision", "provides": ["decision"] }
       ]
+    },
+    {
+      "id": "text",
+      "kind": "text",
+      "name": "文本",
+      "icon": "FileText",
+      "description": "文本容器。手动编辑或展示文本内容。",
+      "inputs": [
+        { "name": "content", "label": "输入文本", "type": "Document", "isConnection": true, "required": false }
+      ],
+      "outputs": [
+        { "name": "content", "label": "文本内容", "type": "Document", "provides": ["document"] }
+      ]
+    },
+    {
+      "id": "code",
+      "kind": "code",
+      "name": "代码",
+      "icon": "Terminal",
+      "description": "Python 脚本执行节点。接收输入，执行代码，输出结果。适用于数据处理、循环、批处理等场景。",
+      "dynamicPorts": true,
+      "inputs": [],
+      "outputs": [],
+      "code": "# 输入通过 inputs 字典访问\n# 输出通过 output 变量返回\n# 例：\n# data = inputs.get('input1', [])\n# output = [item for item in data if item.get('active')]\n"
     }
   ]
 }

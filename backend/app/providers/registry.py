@@ -13,7 +13,18 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[3]  # 项目根（registry.py → providers/ → app/ → backend/ → 根）
+
+# 自动加载 backend/.env 文件（不提交 git）
+_ENV_PATH = _ROOT / "backend" / ".env"  # 项目根/backend/.env
+if _ENV_PATH.exists():
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(str(_ENV_PATH))
+    except ImportError:
+        pass
+
 _CONFIG_PATH = _ROOT / "providers.config.json"
 
 

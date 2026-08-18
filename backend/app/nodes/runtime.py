@@ -204,7 +204,24 @@ _BUILDERS: dict[str, Callable[..., Awaitable[dict]]] = {
 
 
 async def run_build(node, ndef: NodeDef, inputs: dict) -> dict:
-    """按节点定义分发到具体 builder。"""
+    """按节点定义分发到具体 builder。
+
+    支持：
+    - kind='chat': 通用对话（从会话取产物）
+    - kind='review': 审批（从 node.data.reviewDecision 取决策）
+    - kind='text': 文本容器（透传 data.content）
+    - kind='code': Python 代码执行
+    - kind='auto': 内置函数（向后兼容）
+    - kind='generator': 图片生成（向后兼容）
+    - 动态端口节点：从 node.data.ports 获取输出定义
+    """
+    # 动态端口节点：从 node.data.ports 读取输出定义
+    if ndef.dynamicPorts:
+        ports = node.data.get("ports", {}) if isinstance(node.data, dict) else {}
+        outputs_def = ports.get("outputs", [])
+    else:
+        outputs_def = ndef.outputs
+
     if ndef.kind == "auto":
         if not ndef.fn:
             raise ValueError(f"auto 节点缺少 fn: {ndef.id}")
@@ -213,18 +230,70 @@ async def run_build(node, ndef: NodeDef, inputs: dict) -> dict:
             raise ValueError(f"未注册的 fn: {ndef.fn}")
         return await builder({"nodeId": node.id, "inputs": inputs})
     if ndef.kind == "chat":
-        return await chat_default(node, ndef, inputs)
+        result = await chat_default(node, ndef, inputs)
+        # 动态端口：只返回 outputs_def 中定义的端口
+        if ndef.dynamicPorts:
+            return {o["name"]: result.get(o["name"]) for o in outputs_def}
+        return result
     if ndef.kind == "review":
-        return await review_default(node, ndef, inputs)
+        result = await review_default(node, ndef, inputs)
+        if ndef.dynamicPorts:
+            return {o["name"]: result.get(o["name"]) for o in outputs_def}
+        return result
     if ndef.kind == "generator":
-        return await generator_default(node, ndef, inputs)
+        result = await generator_default(node, ndef, inputs)
+        return result
     if ndef.kind == "memory":
-        # P1：返回空记忆句柄（P1.5 接入真实会话记忆聚合）
-        return {
-            o.name: {"sessionId": f"mem-{node.id}", "messages": []}
-            for o in ndef.outputs
-        }
+        result = {o.name: {"sessionId": f"mem-{node.id}", "messages": []} for o in ndef.outputs}
+        return result
     if ndef.kind == "asset":
         return await asset_default(node, ndef, inputs)
-    # table 等：P0 暂为被动数据节点，直接透传 data
-    return {o.name: inputs.get(o.name) for o in ndef.outputs if o.name in inputs}
+    if ndef.kind == "text":
+        # 文本节点：从 data.content 取文本，或从上游输入取
+        if isinstance(node.data, dict):
+            content = node.data.get("content", node.data.get("text", ""))
+        else:
+            content = inputs.get("content", "")
+        return {"content": {"id": f"{node.id}-text", "title": "文本", "markdown": str(content)}}
+    if ndef.kind == "code":
+        return await code_default(node, ndef, inputs, outputs_def)
+
+    # 其他（透传）
+    out_names = [o["name"] if isinstance(o, dict) else o.name for o in outputs_def]
+    return {n: inputs.get(n) for n in out_names if n in inputs}
+
+
+async def code_default(node, ndef: NodeDef, inputs: dict, outputs_def: list) -> dict:
+    """代码执行节点。运行 Python 代码，注入 inputs 变量，读取 output 变量。"""
+    code = node.data.get("code", "") if isinstance(node.data, dict) else ""
+    if not code:
+        code = ndef.code or ""
+    if not code:
+        return {o["name"]: None for o in outputs_def}
+
+    # 准备执行环境
+    import io
+    import sys
+    import json
+
+    local_vars = {
+        "inputs": inputs,
+        "output": None,
+        "json": json,
+        "__builtins__": __builtins__,
+    }
+
+    try:
+        exec(code, local_vars)
+    except Exception as exc:
+        return {o["name"]: {"error": f"{type(exc).__name__}: {exc}"} for o in outputs_def}
+
+    output = local_vars.get("output")
+    if output is None:
+        return {o["name"]: None for o in outputs_def}
+    if isinstance(output, dict):
+        return {o["name"]: output.get(o["name"]) for o in outputs_def}
+    # 单值输出
+    if outputs_def:
+        return {outputs_def[0]["name"]: output}
+    return {}

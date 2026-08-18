@@ -24,8 +24,8 @@ export default function ChatPanel({ node }: { node: Node<CanvasNodeData> }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    void openChat(node.id, node.data.nodeTypeId);
-  }, [node.id, node.data.nodeTypeId, openChat]);
+    void openChat(node.id, node.data.nodeTypeId, node.data as unknown as Record<string, unknown>);
+  }, [node.id, node.data.nodeTypeId, node.data, openChat]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

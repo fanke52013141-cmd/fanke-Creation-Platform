@@ -25,7 +25,9 @@ export type NodeKind =
   | 'table'
   | 'auto'
   | 'review'
-  | 'memory';
+  | 'memory'
+  | 'code'
+  | 'text';
 
 /** 类型重命名迁移表（仿 LangFlow TYPE_MIGRATIONS） */
 export const TYPE_MIGRATIONS: Partial<Record<ArtifactType, ArtifactType>> = {};
@@ -78,6 +80,9 @@ export interface NodeDef {
   onRejectNodeId?: string;
   // table
   editorHint?: string;
+  // 通用节点
+  dynamicPorts?: boolean;
+  code?: string;
 }
 
 /** 画布节点实例的自定义 data */
@@ -85,6 +90,14 @@ export interface CanvasNodeData extends Record<string, unknown> {
   nodeTypeId: string;
   /** 参数面板编辑的值（对应 InputPort 中 isConnection=false 的字段） */
   params?: Record<string, unknown>;
+  /** 动态端口节点：用户自定义的输入输出端口 */
+  ports?: { inputs: InputPort[]; outputs: OutputPort[] };
+  /** 代码节点：Python 代码 */
+  code?: string;
+  /** 对话节点：系统提示词（实例级覆盖） */
+  systemPrompt?: string;
+  /** 对话节点：模型引用（实例级覆盖） */
+  model?: { providerId: string; modelId: string; variant?: string };
 }
 
 /** 与后端 Graph / Edge 对齐的 payload（执行时发送） */

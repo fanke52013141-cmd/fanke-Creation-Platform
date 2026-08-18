@@ -76,32 +76,45 @@ async def _run_node(
         results[nid] = {"error": f"unknown node def: {node.nodeTypeId}"}
         return
 
+    # 动态端口节点：从 node.data.ports 读取端口定义
+    if ndef.dynamicPorts:
+        ports_data = node.data.get("ports", {}) if isinstance(node.data, dict) else {}
+        input_ports = ports_data.get("inputs", [])
+    else:
+        input_ports = ndef.inputs
+
     # 1) 解析上游输入
     inputs: dict = {}
-    for port in ndef.inputs:
-        if not port.isConnection:
-            # 参数字段从节点 data 取
-            inputs[port.name] = node.data.get(port.name, port.defaultValue)
+    for port in input_ports:
+        # 支持 dict 或 InputPort 对象
+        port_name = port["name"] if isinstance(port, dict) else port.name
+        port_is_connection = port.get("isConnection", False) if isinstance(port, dict) else port.isConnection
+        port_array = port.get("array", False) if isinstance(port, dict) else port.array
+        port_required = port.get("required", False) if isinstance(port, dict) else port.required
+        port_label = port.get("label", port_name) if isinstance(port, dict) else (port.label or port_name)
+        port_default = port.get("defaultValue") if isinstance(port, dict) else port.defaultValue
+
+        if not port_is_connection:
+            inputs[port_name] = node.data.get(port_name, port_default)
             continue
         vals = [
             results[e.source].get(e.sourcePort)
             for e in graph.edges
-            if e.target == nid and e.targetPort == port.name and e.source in results
+            if e.target == nid and e.targetPort == port_name and e.source in results
         ]
         vals = [v for v in vals if v is not None]
-        if port.array:
-            # 数组口：合并所有上游值；若某个上游值本身是 list（上游也是数组口），展平合并
+        if port_array:
             flat: list = []
             for v in vals:
                 if isinstance(v, list):
                     flat.extend(v)
                 else:
                     flat.append(v)
-            inputs[port.name] = flat
+            inputs[port_name] = flat
         else:
-            inputs[port.name] = vals[0] if vals else None
-        if port.required and not vals:
-            results[nid] = {"error": f"缺少必需输入: {port.label or port.name}"}
+            inputs[port_name] = vals[0] if vals else None
+        if port_required and not vals:
+            results[nid] = {"error": f"缺少必需输入: {port_label}"}
             return
 
     # 2) 缓存命中？
