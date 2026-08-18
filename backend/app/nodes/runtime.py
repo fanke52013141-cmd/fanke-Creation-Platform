@@ -257,6 +257,8 @@ async def run_build(node, ndef: NodeDef, inputs: dict) -> dict:
         return {"content": {"id": f"{node.id}-text", "title": "文本", "markdown": str(content)}}
     if ndef.kind == "code":
         return await code_default(node, ndef, inputs, outputs_def)
+    if ndef.kind == "loop":
+        return await loop_default(node, ndef, inputs, outputs_def)
 
     # 其他（透传）
     out_names = [o["name"] if isinstance(o, dict) else o.name for o in outputs_def]
@@ -297,3 +299,66 @@ async def code_default(node, ndef: NodeDef, inputs: dict, outputs_def: list) -> 
     if outputs_def:
         return {outputs_def[0]["name"]: output}
     return {}
+
+
+async def loop_default(node, ndef: NodeDef, inputs: dict, outputs_def: list) -> dict:
+    """循环/批处理节点。遍历输入列表，对每个元素执行代码，聚合结果。
+
+    代码中可访问：
+    - inputs['items']: 输入列表（从第一输入端口自动获取）
+    - inputs['context']: 上下文（可选，从第二输入端口获取）
+    - 代码执行后，output 变量作为聚合结果返回
+    """
+    code = node.data.get("code", "") if isinstance(node.data, dict) else ""
+    if not code:
+        code = ndef.code or ""
+    if not code:
+        return {o["name"]: [] for o in outputs_def}
+
+    import json
+
+    # 自动获取 items：取第一个非空数组输入
+    items = None
+    for key, val in inputs.items():
+        if isinstance(val, list):
+            items = val
+            break
+    if items is None:
+        items = []
+
+    context = {}
+    for key, val in inputs.items():
+        if not isinstance(val, list):
+            context[key] = val
+
+    results = []
+    for i, item in enumerate(items):
+        local_vars = {
+            "inputs": inputs,
+            "item": item,
+            "index": i,
+            "items": items,
+            "context": context,
+            # 每次迭代清空 output，用户代码把本次处理结果赋给 output
+            "output": None,
+            # 用户代码可以操作 results（追加等方式）
+            "results": results,
+            "json": json,
+            "__builtins__": __builtins__,
+        }
+        try:
+            exec(code, local_vars)
+        except Exception as exc:
+            results.append({"error": f"{type(exc).__name__}: {exc}"})
+            continue
+        # 如果用户代码设置了 output，追加到 results
+        result = local_vars.get("output")
+        if result is not None:
+            results.append(result)
+
+    # 返回 outputs_def 中定义的端口
+    output = {}
+    for o in outputs_def:
+        name = o["name"] if isinstance(o, dict) else o.name
+        output[name] = results
+    return output

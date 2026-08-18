@@ -27,7 +27,8 @@ export type NodeKind =
   | 'review'
   | 'memory'
   | 'code'
-  | 'text';
+  | 'text'
+  | 'loop';
 
 /** 类型重命名迁移表（仿 LangFlow TYPE_MIGRATIONS） */
 export const TYPE_MIGRATIONS: Partial<Record<ArtifactType, ArtifactType>> = {};

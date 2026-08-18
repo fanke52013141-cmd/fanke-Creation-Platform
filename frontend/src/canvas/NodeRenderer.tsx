@@ -7,7 +7,7 @@ import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import {
   Archive, Brain, Clapperboard, ClipboardCheck, FileText, FolderOpen,
   HelpCircle, Image as ImageIcon, Lightbulb, MessageSquare, Package,
-  Palette, Terminal, Wand2, type LucideIcon,
+  Palette, Repeat, Terminal, Wand2, type LucideIcon,
 } from 'lucide-react';
 
 import { getNodeDef } from '../data/nodeDefs';
@@ -16,12 +16,12 @@ import type { CanvasNodeData, InputPort, NodeKind, OutputPort } from '../types';
 
 const ICONS: Record<string, LucideIcon> = {
   Lightbulb, ClipboardCheck, Palette, Package, Clapperboard, Wand2,
-  ImageIcon, Archive, Brain, FolderOpen, MessageSquare, FileText, Terminal,
+  ImageIcon, Archive, Brain, FolderOpen, MessageSquare, FileText, Terminal, Repeat,
 };
 
 const KIND_LABELS: Record<NodeKind, string> = {
   chat: '对话', generator: '生成', asset: '资产', table: '表格',
-  auto: '自动', review: '审查', memory: '记忆', code: '代码', text: '文本',
+  auto: '自动', review: '审查', memory: '记忆', code: '代码', text: '文本', loop: '循环',
 };
 
 function PortRow({ port, isInput }: { port: InputPort | OutputPort; isInput: boolean }) {

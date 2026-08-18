@@ -8,6 +8,7 @@ import Inspector from './components/Inspector';
 import Toolbar from './components/Toolbar';
 import ResultsPanel from './components/ResultsPanel';
 import NodeSidebar from './components/NodeSidebar';
+import AssetPanel from './components/AssetPanel';
 import { useCanvasStore } from './store';
 
 export default function App() {
@@ -19,7 +20,10 @@ export default function App() {
     <div className="app">
       <Toolbar />
       <div className="app__body">
-        <NodePalette />
+        <div className="app__left">
+          <NodePalette />
+          <AssetPanel />
+        </div>
         <main className="canvas-wrap">
           <Canvas />
         </main>

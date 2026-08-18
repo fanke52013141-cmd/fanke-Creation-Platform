@@ -34,12 +34,13 @@ const ICONS: Record<string, LucideIcon> = {
   FolderOpen,
 };
 
-const GROUP_ORDER: NodeKind[] = ['chat', 'review', 'text', 'code', 'auto', 'generator', 'asset', 'table', 'memory'];
+const GROUP_ORDER: NodeKind[] = ['chat', 'review', 'text', 'code', 'loop', 'auto', 'generator', 'asset', 'table', 'memory'];
 const GROUP_LABELS: Record<NodeKind, string> = {
   chat: '💬 对话',
   review: '✅ 审查',
   text: '📝 文本',
   code: '🔧 代码',
+  loop: '🔄 循环',
   generator: '🎨 生成',
   asset: '📦 资产',
   table: '📋 表格',

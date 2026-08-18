@@ -969,3 +969,74 @@ body {
 }
 
 .review-panel__reason textarea:focus { outline: none; border-color: #4c5cff; }
+
+/* ===== 资产库面板 ===== */
+.asset-panel {
+  border-top: 1px solid #e3e6ee;
+  overflow-y: auto;
+  flex-shrink: 0;
+  max-height: 40%;
+}
+
+.asset-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+}
+
+.asset-panel__title { font-size: 12px; font-weight: 600; }
+
+.asset-panel__error { font-size: 11px; color: #c0392b; padding: 4px 10px; }
+
+.asset-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 0 8px 8px;
+}
+
+.asset-panel__empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #a0a6b6;
+  font-size: 11px;
+  padding: 12px 0;
+}
+
+.asset-panel__item {
+  border: 1px solid #e3e6ee;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f7f8fb;
+  position: relative;
+}
+
+.asset-panel__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.asset-panel__file-icon { color: #8a91a3; }
+
+.asset-panel__item-id {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  font-size: 9px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1px 4px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

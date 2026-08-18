@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
+  "version": "2.1.0",
   "artifactTypes": [
     "Message", "Document", "Prompt", "Shot", "Image", "Audio", "Video",
     "Memory", "ModelRef", "Decision", "Table", "Data"
@@ -51,6 +51,17 @@
       "inputs": [],
       "outputs": [],
       "code": "# 输入通过 inputs 字典访问\n# 输出通过 output 变量返回\n# 例：\n# data = inputs.get('input1', [])\n# output = [item for item in data if item.get('active')]\n"
+    },
+    {
+      "id": "loop",
+      "kind": "loop",
+      "name": "循环",
+      "icon": "Repeat",
+      "description": "批处理/循环节点。遍历输入列表，对每个元素执行子图（代码逻辑），聚合结果。",
+      "dynamicPorts": true,
+      "inputs": [],
+      "outputs": [],
+      "code": "# 遍历 items 列表，对每个元素处理\n# items = inputs.get('items', [])  # 输入的列表\n# 输出聚合结果\n# 例：\n# results = []\n# for item in items:\n#     result = {'original': item, 'processed': str(item)}\n#     results.append(result)\n# output = {'results': results}\n"
     }
   ]
 }

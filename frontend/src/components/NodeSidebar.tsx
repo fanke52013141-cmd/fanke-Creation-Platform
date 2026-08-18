@@ -55,5 +55,6 @@ export default function NodeSidebar({ node }: { node: Node<CanvasNodeData> }) {
   if (kind === 'review') return <ReviewPanel node={node} />;
   if (kind === 'text') return <TextEditor node={node} />;
   if (kind === 'code') return <CodeEditor node={node} />;
+  if (kind === 'loop') return <CodeEditor node={node} />;
   return <Inspector />;
 }

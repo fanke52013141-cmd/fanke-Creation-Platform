@@ -94,3 +94,26 @@ export async function sendChatMessage(
     body: JSON.stringify({ content }),
   });
 }
+
+// ---------------------------------------------------------------------------
+// 资产 API
+// ---------------------------------------------------------------------------
+
+export interface AssetInfo {
+  assetId: string;
+  head: { url: string; mime: string; width?: number; height?: number } | null;
+  versionsCount: number;
+}
+
+export async function fetchAssets(): Promise<{ assets: AssetInfo[] }> {
+  return jsonFetch('/assets');
+}
+
+export async function uploadAsset(file: File, assetId?: string): Promise<{ assetId: string; url: string }> {
+  const form = new FormData();
+  form.append('file', file);
+  if (assetId) form.append('assetId', assetId);
+  const res = await fetch('/api/assets/upload', { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+  return res.json();
+}
