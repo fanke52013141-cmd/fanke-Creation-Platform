@@ -36,8 +36,10 @@ interface CanvasState {
   removeNode: (nodeId: string) => void;
   selectNode: (nodeId: string | null) => void;
   updateNodeParams: (nodeId: string, params: Record<string, unknown>) => void;
+  updateNodeData: (nodeId: string, key: string, value: unknown) => void;
   autoConnect: () => void;
   clearCanvas: () => void;
+  loadProject: (nodes: Node<CanvasNodeData>[], edges: Edge[]) => void;
   setIsExecuting: (v: boolean) => void;
   setExecResults: (r: Record<string, unknown> | null) => void;
   setExecError: (e: string | null) => void;
@@ -102,6 +104,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       ),
     }),
 
+  updateNodeData: (nodeId, key, value) =>
+    set({
+      nodes: get().nodes.map((n) =>
+        n.id === nodeId ? { ...n, data: { ...n.data, [key]: value } } : n,
+      ),
+    }),
+
   autoConnect: () => {
     const { nodes } = get();
     const derived = deriveEdges(nodes, getNodeDef);
@@ -119,6 +128,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   clearCanvas: () => set({ nodes: [], edges: [], selectedNodeId: null }),
+
+  loadProject: (nodes, edges) =>
+    set({ nodes, edges, selectedNodeId: null, execResults: null, execError: null }),
 
   setIsExecuting: (v) => set({ isExecuting: v }),
 

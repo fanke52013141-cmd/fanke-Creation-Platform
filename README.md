@@ -108,9 +108,11 @@ OPENAI_MODEL=gpt-5.6-sol
 | 阶段 | 目标 | 状态 |
 |------|------|------|
 | P0 | 类型系统 + 引擎 + 画布 + 9 节点可视化 | ✅ 完成 |
-| P1 | Provider + Chat 节点（LangChain + 右侧聊天面板）+ Memory | ✅ 完成（Memory 完整版待 P1.5） |
-| P2 | Generator 图片生成闭环 + Asset 版本化 + 图片网格 | ✅ 完成（真实图片 provider 待配 key） |
-| P3 | Table 分镜表定制前端（镜头卡片 + 时间线） | ⏭ 下一步 |
-| P4 | LangGraph 编排 + Review 驳回回流 | ⏳ |
-| P5 | Auto/Review 完善 + 完整闭环 | ⏳ |
+| P1 | Provider + Chat 节点（LangChain + 右侧聊天面板）+ Memory | ✅ 完成 |
+| P2 | Generator 图片生成闭环 + Asset 版本化 + 图片网格 | ✅ 完成 |
+| P3 | Table 分镜表定制前端（镜头卡片 + 时间线） | ✅ 完成 |
+| P4 | Review 审批交互 + 控制流回流 | ✅ 完成 |
+| MVP | 画布持久化（保存/加载）+ 执行结果回填 | ✅ 完成 |
+| — | 代码审查优化（P1 问题修复） | ✅ 完成 |
+| P5 | LangGraph 编排 + 完整闭环 | ⏳ |
 | P6 | 音频/视频生成（含抽帧） | ⏳ |

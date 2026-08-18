@@ -95,7 +95,12 @@ class SessionManager:
             raise KeyError(session_id)
         s.messages.append({"role": "user", "content": content})
         backend = get_chat_backend(s.model_ref)
-        reply = backend.generate(s.system_prompt, s.messages[:-1], content)
+        try:
+            reply = backend.generate(s.system_prompt, s.messages[:-1], content)
+        except Exception as exc:
+            error_msg = f"模型调用失败: {type(exc).__name__}: {exc}"
+            s.messages.append({"role": "assistant", "content": error_msg})
+            return {"message": {"role": "assistant", "content": error_msg}, "products": {}}
         s.messages.append({"role": "assistant", "content": reply})
 
         defs = load_node_defs()

@@ -87,13 +87,31 @@ def _placeholder_document(node_id: str, port_name: str, label: str, note: str) -
 async def chat_default(node, ndef: NodeDef, inputs: dict) -> dict:
     """Chat 节点：从该节点会话取最新产物快照（由聊天面板对话产出）。
 
-    未开聊/无产物时返回占位文档，提示打开聊天面板。P1 起接入 LangChain。
+    分镜节点（editorHint='storyboard'）优先使用 node.data 手动编辑的 storyboardData，
+    否则回退到会话产物。这样手动编辑和 LLM 生成可共存。
     """
     from ..chat.session import sessions
 
+    out: dict[str, Any] = {}
+
+    # 分镜节点：优先手动编辑数据
+    if ndef.editorHint == "storyboard":
+        storyboard_data = node.data.get("storyboardData") if isinstance(node.data, dict) else None
+        if storyboard_data and isinstance(storyboard_data, dict):
+            for o in ndef.outputs:
+                if o.name == "storyboard" and storyboard_data.get("rows"):
+                    out[o.name] = {"columns": storyboard_data.get("columns", [
+                        {"key": "sceneDescription", "label": "画面描述", "type": "text"},
+                        {"key": "durationSec", "label": "时长", "type": "number"},
+                        {"key": "cameraAngle", "label": "机位", "type": "text"},
+                        {"key": "dialogue", "label": "对白", "type": "text"},
+                    ]), "rows": storyboard_data.get("rows", [])}
+                else:
+                    out[o.name] = None
+            return out
+
     session = sessions.by_node(node.id)
     products = session.products if session else {}
-    out: dict[str, Any] = {}
     for o in ndef.outputs:
         label = o.label or o.name
         if o.name in products and products[o.name] is not None:
@@ -118,8 +136,18 @@ async def chat_default(node, ndef: NodeDef, inputs: dict) -> dict:
 
 
 async def review_default(node, ndef: NodeDef, inputs: dict) -> dict:
-    """P0 占位：默认批准（approve）。"""
-    return {"decision": {"approved": True, "reason": "（P0 占位自动通过；P5 接入审查交互）"}}
+    """Review 节点：优先读 node.data.reviewDecision（前端审批面板写入）。
+
+    有 decision → 透传；无 → 返回"待审批"占位。
+    """
+    # 从 node.data 读审批决策（前端 ReviewPanel 写入）
+    review_data = node.data.get("reviewDecision") if isinstance(node.data, dict) else None
+    if review_data and isinstance(review_data, dict):
+        approved = review_data.get("approved", False)
+        reason = review_data.get("reason", "")
+        return {"decision": {"approved": approved, "reason": reason}}
+    # 无决策 → 待审批占位
+    return {"decision": {"approved": None, "reason": "（待审批）"}}
 
 
 async def generator_default(node, ndef: NodeDef, inputs: dict) -> dict:

@@ -52,6 +52,14 @@ body {
 .toolbar__actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.toolbar__sep {
+  width: 1px;
+  height: 20px;
+  background: #e3e6ee;
+  flex-shrink: 0;
 }
 
 .btn {
@@ -648,3 +656,280 @@ body {
   border-radius: 8px;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
 }
+
+/* ===== 右侧面板标签栏（NodeSidebar，分镜双 Tab） ===== */
+.node-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid #e3e6ee;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.sidebar-tabs button {
+  flex: 1;
+  padding: 9px 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: #6a7184;
+  border-bottom: 2px solid transparent;
+}
+
+.sidebar-tabs button.active {
+  color: #4c5cff;
+  font-weight: 600;
+  border-bottom-color: #4c5cff;
+}
+
+.node-sidebar__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.node-sidebar__body > aside {
+  height: 100%;
+  border-left: none;
+  flex: 1;
+}
+
+/* ===== 分镜表编辑器（MVP-P3） ===== */
+.sb-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+  border-left: 1px solid #e3e6ee;
+}
+
+.sb-panel__header {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef0f5;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sb-panel__title { font-size: 14px; font-weight: 700; }
+
+.sb-panel__sub { font-size: 11px; color: #8a91a3; margin-top: 3px; }
+
+.sb-panel__aspect {
+  font-size: 11px;
+  color: #6a7184;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sb-panel__aspect select {
+  border: 1px solid #d3d8e3;
+  border-radius: 6px;
+  padding: 3px 4px;
+  font-size: 11px;
+}
+
+.sb-panel__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #f8f9fc;
+  min-height: 0;
+}
+
+.sb-panel__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #a0a6b6;
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 24px;
+}
+
+.sb-add {
+  margin: 10px 12px;
+  padding: 8px;
+  border: 1px dashed #c9d2ff;
+  border-radius: 8px;
+  background: #f4f6ff;
+  color: #4c5cff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sb-add:hover { background: #eef1ff; }
+
+.sb-card {
+  background: #fff;
+  border: 1px solid #e3e6ee;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(31, 36, 48, 0.05);
+  overflow: hidden;
+}
+
+.sb-card__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #eef0f5;
+}
+
+.sb-card__index {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #4c5cff;
+  border-radius: 8px;
+  padding: 1px 8px;
+}
+
+.sb-card__dur { font-size: 11px; color: #6a7184; margin-left: auto; }
+
+.sb-card__actions {
+  display: flex;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.sb-icon-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #8a91a3;
+  padding: 3px;
+  border-radius: 4px;
+}
+
+.sb-icon-btn:hover { background: #f0f2f7; color: #3a4152; }
+.sb-icon-btn--danger:hover { color: #c0392b; background: #fdecec; }
+
+.sb-card__body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+
+.sb-field { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+
+.sb-field__label {
+  font-size: 10.5px;
+  color: #8a91a3;
+}
+
+.sb-field input[type='text'],
+.sb-field textarea,
+.sb-field select {
+  border: 1px solid #d3d8e3;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  width: 100%;
+}
+
+.sb-field input:focus,
+.sb-field textarea:focus,
+.sb-field select:focus { outline: none; border-color: #4c5cff; }
+
+.sb-field-row { display: flex; gap: 6px; }
+
+/* ===== 审查面板（MVP-P4） ===== */
+.review-panel {
+  width: 280px;
+  flex-shrink: 0;
+  background: #fff;
+  border-left: 1px solid #e3e6ee;
+  display: flex;
+  flex-direction: column;
+}
+
+.review-panel__header {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef0f5;
+}
+
+.review-panel__title { font-size: 14px; font-weight: 700; }
+.review-panel__sub { font-size: 11px; color: #8a91a3; margin-top: 2px; }
+
+.review-panel__body {
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-panel__status {
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px;
+}
+.review-panel__status.pending { background: #fff6e5; color: #e69800; }
+.review-panel__status.approved { background: #e6f7e6; color: #219653; }
+.review-panel__status.rejected { background: #fdecec; color: #c0392b; }
+
+.review-panel__info { font-size: 12px; color: #6a7184; }
+
+.review-panel__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn--approve {
+  flex: 1;
+  background: #219653;
+  border-color: #219653;
+  color: #fff;
+}
+.btn--approve:hover { background: #1e8a4b; }
+.btn--approve:disabled { opacity: 0.5; }
+
+.btn--reject {
+  flex: 1;
+  background: #c0392b;
+  border-color: #c0392b;
+  color: #fff;
+}
+.btn--reject:hover { background: #a93226; }
+.btn--reject:disabled { opacity: 0.5; }
+
+.review-panel__reason {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #3a4152;
+}
+
+.review-panel__reason textarea {
+  border: 1px solid #d3d8e3;
+  border-radius: 6px;
+  padding: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.review-panel__reason textarea:focus { outline: none; border-color: #4c5cff; }
