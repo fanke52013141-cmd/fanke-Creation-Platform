@@ -90,7 +90,14 @@ async def _run_node(
         ]
         vals = [v for v in vals if v is not None]
         if port.array:
-            inputs[port.name] = vals
+            # 数组口：合并所有上游值；若某个上游值本身是 list（上游也是数组口），展平合并
+            flat: list = []
+            for v in vals:
+                if isinstance(v, list):
+                    flat.extend(v)
+                else:
+                    flat.append(v)
+            inputs[port.name] = flat
         else:
             inputs[port.name] = vals[0] if vals else None
         if port.required and not vals:

@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "artifactTypes": [
     "Message", "Document", "Prompt", "Shot", "Image", "Audio", "Video",
     "Memory", "ModelRef", "Decision", "Table", "Data"
@@ -152,6 +152,20 @@
       ],
       "outputs": [
         { "name": "package", "label": "交付包", "type": "Document", "provides": ["package"] }
+      ]
+    },
+    {
+      "id": "asset-library",
+      "kind": "asset",
+      "name": "资产库",
+      "icon": "FolderOpen",
+      "description": "被动持有图片等媒体资产，版本化；上游图片可登记为新资产",
+      "mediaType": "image",
+      "inputs": [
+        { "name": "images", "label": "图片", "type": "Image", "isConnection": true, "array": true, "accepts": ["image"], "required": false }
+      ],
+      "outputs": [
+        { "name": "head", "label": "资产（最新版）", "type": "Image", "array": true, "provides": ["image"] }
       ]
     },
     {

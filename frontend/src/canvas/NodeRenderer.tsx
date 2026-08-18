@@ -9,6 +9,7 @@ import {
   Brain,
   Clapperboard,
   ClipboardCheck,
+  FolderOpen,
   HelpCircle,
   Image as ImageIcon,
   Lightbulb,
@@ -32,6 +33,7 @@ const ICONS: Record<string, LucideIcon> = {
   ImageIcon,
   Archive,
   Brain,
+  FolderOpen,
 };
 
 const KIND_LABELS: Record<NodeKind, string> = {

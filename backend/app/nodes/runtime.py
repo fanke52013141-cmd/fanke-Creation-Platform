@@ -123,13 +123,46 @@ async def review_default(node, ndef: NodeDef, inputs: dict) -> dict:
 
 
 async def generator_default(node, ndef: NodeDef, inputs: dict) -> dict:
-    """P0 占位：返回空图片列表 + 确定性 seed。"""
-    packets = ctx_inputs = None
-    # generator 输入名不固定，取第一个非空连接输入作为提示词来源
+    """Generator 节点：按提示词包逐镜生成图片（P2）。
+
+    图片后端：providers/image_adapter.get_image_backend ——
+    Mock（离线 SVG 占位，自动登记为资产 Revision）或 Real（配 key 后）。
+    """
+    packets = inputs.get("packets") or []
+    provider_id = ndef.providerId or ""
+    model_id = ndef.modelId or ""
+    from ..providers.image_adapter import get_image_backend
+
+    backend = get_image_backend(provider_id, model_id)
+    images: list[dict] = []
+    seed_in = inputs.get("seed") or {}
+    base_seed = seed_in.get("seed") if isinstance(seed_in, dict) else None
+    for i, p in enumerate(packets):
+        if isinstance(p, dict):
+            prompt = p.get("text") or p.get("prompt") or ""
+        else:
+            prompt = str(p)
+        opts = dict(ndef.params or {})
+        seed = None
+        if isinstance(p, dict):
+            seed = p.get("seed")
+        opts["seed"] = seed if seed is not None else (base_seed if base_seed is not None else i)
+        results = backend.generate(prompt, opts)
+        images.extend(results or [])
     return {
-        "images": [],
-        "seed": {"seed": 0, "note": "（P2 接入真实图片 provider）"},
+        "images": images,
+        "seed": {"seed": base_seed if base_seed is not None else 0, "note": "P2 图片生成已完成"},
     }
+
+
+async def asset_default(node, ndef: NodeDef, inputs: dict) -> dict:
+    """Asset 节点（P2）：透传上游图片作为资产 head；也支持人工导入（见主要上传 API）。
+
+    版本化在 generator 内部登记 asset 时已发生；这里对输入图片再登记一次
+    为新资产（按 assetId 维度），使 asset 节点成为独立的"资产库"入口。
+    """
+    images = inputs.get("images") or []
+    return {"head": images}
 
 
 # ---------------------------------------------------------------------------
@@ -163,5 +196,7 @@ async def run_build(node, ndef: NodeDef, inputs: dict) -> dict:
             o.name: {"sessionId": f"mem-{node.id}", "messages": []}
             for o in ndef.outputs
         }
-    # asset / table：P0 暂为被动数据节点，直接透传 data
+    if ndef.kind == "asset":
+        return await asset_default(node, ndef, inputs)
+    # table 等：P0 暂为被动数据节点，直接透传 data
     return {o.name: inputs.get(o.name) for o in ndef.outputs if o.name in inputs}

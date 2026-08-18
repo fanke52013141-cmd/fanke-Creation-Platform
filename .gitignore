@@ -9,6 +9,8 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+# 运行时产生的资产文件（不入库）
+backend/data/
 
 # ---- 环境变量（绝不提交真实 key）----
 .env
