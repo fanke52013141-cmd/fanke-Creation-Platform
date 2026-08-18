@@ -1,0 +1,28 @@
+{
+  "chat": [
+    {
+      "id": "codex2api",
+      "baseURL": "https://www.codex2api.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "models": [
+        { "id": "gpt-5.6-sol",   "name": "GPT-5.6 Sol",   "context": 1050000, "output": 128000, "variants": ["low", "medium", "high", "xhigh", "max"] },
+        { "id": "gpt-5.6-terra", "name": "GPT-5.6 Terra", "context": 1050000, "output": 128000, "variants": ["low", "medium", "high", "xhigh", "max"] },
+        { "id": "gpt-5.6-luna",  "name": "GPT-5.6 Luna",  "context": 1050000, "output": 128000, "variants": ["low", "medium", "high", "xhigh", "max"] },
+        { "id": "gpt-5.5",       "name": "GPT-5.5",       "context": 1050000, "output": 128000, "variants": ["low", "medium", "high", "xhigh"] },
+        { "id": "gpt-5.4",       "name": "GPT-5.4",       "context": 1050000, "output": 128000, "variants": ["low", "medium", "high", "xhigh"] },
+        { "id": "gpt-5.4-mini",  "name": "GPT-5.4 Mini",  "context": 400000,  "output": 128000, "variants": ["low", "medium", "high", "xhigh"] },
+        { "id": "gpt-5.2",       "name": "GPT-5.2",       "context": 400000,  "output": 128000, "variants": ["low", "medium", "high", "xhigh"] }
+      ]
+    }
+  ],
+  "image": [
+    {
+      "id": "codex2api",
+      "apiStyle": "openai-images",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "models": [
+        { "id": "gpt-image-1", "name": "GPT Image 1" }
+      ]
+    }
+  ]
+}
