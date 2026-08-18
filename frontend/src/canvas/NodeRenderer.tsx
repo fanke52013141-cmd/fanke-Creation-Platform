@@ -6,6 +6,7 @@
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import {
   Archive,
+  Brain,
   Clapperboard,
   ClipboardCheck,
   HelpCircle,
@@ -30,6 +31,7 @@ const ICONS: Record<string, LucideIcon> = {
   Wand2,
   ImageIcon,
   Archive,
+  Brain,
 };
 
 const KIND_LABELS: Record<NodeKind, string> = {

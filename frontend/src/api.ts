@@ -43,3 +43,41 @@ export async function validateConnection(req: {
     body: JSON.stringify(req),
   });
 }
+
+// ---------------------------------------------------------------------------
+// 聊天 API（P1）
+// ---------------------------------------------------------------------------
+
+export interface ChatMessageDTO {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatSessionInfo {
+  sessionId: string;
+  nodeId: string;
+  systemPrompt: string;
+  model: Record<string, unknown>;
+  messages: ChatMessageDTO[];
+  products: Record<string, unknown>;
+}
+
+export async function createChatSession(
+  nodeId: string,
+  nodeTypeId: string,
+): Promise<ChatSessionInfo> {
+  return jsonFetch('/chat/sessions', {
+    method: 'POST',
+    body: JSON.stringify({ nodeId, nodeTypeId }),
+  });
+}
+
+export async function sendChatMessage(
+  sessionId: string,
+  content: string,
+): Promise<{ message: ChatMessageDTO; products: Record<string, unknown> }> {
+  return jsonFetch(`/chat/sessions/${sessionId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}

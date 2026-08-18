@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Archive,
+  Brain,
   Clapperboard,
   ClipboardCheck,
   HelpCircle,
@@ -28,6 +29,7 @@ const ICONS: Record<string, LucideIcon> = {
   Wand2,
   ImageIcon,
   Archive,
+  Brain,
 };
 
 const GROUP_ORDER: NodeKind[] = ['chat', 'review', 'auto', 'generator', 'asset', 'table', 'memory'];

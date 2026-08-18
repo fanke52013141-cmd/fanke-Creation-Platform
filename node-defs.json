@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "artifactTypes": [
     "Message", "Document", "Prompt", "Shot", "Image", "Audio", "Video",
     "Memory", "ModelRef", "Decision", "Table", "Data"
@@ -152,6 +152,19 @@
       ],
       "outputs": [
         { "name": "package", "label": "交付包", "type": "Document", "provides": ["package"] }
+      ]
+    },
+    {
+      "id": "memory",
+      "kind": "memory",
+      "name": "记忆",
+      "icon": "Brain",
+      "description": "共享对话上下文：retrieve 模式向多个 Chat 节点提供同一段对话记忆",
+      "mode": "retrieve",
+      "backend": "ephemeral",
+      "inputs": [],
+      "outputs": [
+        { "name": "memory", "label": "对话记忆", "type": "Memory", "provides": ["memory"] }
       ]
     }
   ]

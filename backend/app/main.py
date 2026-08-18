@@ -7,10 +7,11 @@
 """
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from .chat.session import sessions
 from .defs import artifact_types, load_node_defs
 from .engine.connections import is_valid_connection
 from .engine.derive import derive_edges
@@ -72,6 +73,73 @@ async def execute_graph(graph: Graph) -> dict:
     """执行画布图：分层并发 + 按节点缓存 + 环检测。"""
     results = await execute(graph)
     return {"results": results}
+
+
+# ---------------------------------------------------------------------------
+# 聊天 API（P1：Chat 节点右侧聊天面板）
+# ---------------------------------------------------------------------------
+
+
+class ChatSessionCreate(BaseModel):
+    nodeId: str
+    nodeTypeId: str
+
+
+class ChatMessageSend(BaseModel):
+    content: str
+
+
+@app.post("/api/chat/sessions")
+async def create_chat_session(req: ChatSessionCreate) -> dict:
+    """按画布节点实例创建/获取会话（幂等）。"""
+    try:
+        s = sessions.get_or_create(req.nodeId, req.nodeTypeId)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "sessionId": s.id,
+        "nodeId": s.node_id,
+        "systemPrompt": s.system_prompt,
+        "model": s.model_ref,
+        "messages": s.messages,
+        "products": s.products,
+    }
+
+
+@app.get("/api/chat/sessions/{session_id}/messages")
+async def get_chat_messages(session_id: str) -> dict:
+    s = sessions.get(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="session not found")
+    return {"messages": s.messages}
+
+
+@app.get("/api/chat/sessions/{session_id}/products")
+async def get_chat_products(session_id: str) -> dict:
+    s = sessions.get(session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="session not found")
+    return {"products": s.products}
+
+
+@app.post("/api/chat/sessions/{session_id}/messages")
+async def send_chat_message(session_id: str, req: ChatMessageSend) -> dict:
+    """发一条用户消息，返回 assistant 回复 + 解析出的产物。"""
+    if not req.content.strip():
+        raise HTTPException(status_code=400, detail="消息不能为空")
+    try:
+        return await _send_message_async(session_id, req.content)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="session not found") from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
+
+
+async def _send_message_async(session_id: str, content: str) -> dict:
+    """LLM 调用是同步阻塞的，丢到线程池避免卡住事件循环。"""
+    import asyncio
+
+    return await asyncio.to_thread(sessions.send_message, session_id, content)
 
 
 if __name__ == "__main__":

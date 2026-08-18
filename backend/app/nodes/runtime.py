@@ -85,13 +85,23 @@ def _placeholder_document(node_id: str, port_name: str, label: str, note: str) -
 
 
 async def chat_default(node, ndef: NodeDef, inputs: dict) -> dict:
-    """P0 占位：按 outputs 声明产出空文档/空表，标记 P1 接入 LangChain。"""
+    """Chat 节点：从该节点会话取最新产物快照（由聊天面板对话产出）。
+
+    未开聊/无产物时返回占位文档，提示打开聊天面板。P1 起接入 LangChain。
+    """
+    from ..chat.session import sessions
+
+    session = sessions.by_node(node.id)
+    products = session.products if session else {}
     out: dict[str, Any] = {}
     for o in ndef.outputs:
         label = o.label or o.name
-        if o.type == "Document":
+        if o.name in products and products[o.name] is not None:
+            out[o.name] = products[o.name]
+        elif o.type == "Document":
             out[o.name] = _placeholder_document(
-                node.id, o.name, label, f"{ndef.name} 的「{label}」— P1 接入 LangChain 后由对话产出"
+                node.id, o.name, label,
+                f"{ndef.name} 的「{label}」— 点击节点打开聊天面板，对话后自动产出",
             )
         elif o.type == "Table":
             out[o.name] = {
@@ -147,5 +157,11 @@ async def run_build(node, ndef: NodeDef, inputs: dict) -> dict:
         return await review_default(node, ndef, inputs)
     if ndef.kind == "generator":
         return await generator_default(node, ndef, inputs)
-    # asset / table / memory：P0 暂为被动数据节点，直接透传 data
+    if ndef.kind == "memory":
+        # P1：返回空记忆句柄（P1.5 接入真实会话记忆聚合）
+        return {
+            o.name: {"sessionId": f"mem-{node.id}", "messages": []}
+            for o in ndef.outputs
+        }
+    # asset / table：P0 暂为被动数据节点，直接透传 data
     return {o.name: inputs.get(o.name) for o in ndef.outputs if o.name in inputs}
