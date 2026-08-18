@@ -18,6 +18,7 @@ import ChatPanel from './ChatPanel';
 import ReviewPanel from './ReviewPanel';
 import TextEditor from './TextEditor';
 import CodeEditor from './CodeEditor';
+import AssetEditor from './AssetEditor';
 import StoryboardEditor from './StoryboardEditor';
 import Inspector from './Inspector';
 import type { CanvasNodeData } from '../types';
@@ -48,5 +49,6 @@ export default function NodeSidebar({ node }: { node: Node<CanvasNodeData> }) {
   if (kind === 'process' || kind === 'review') return <ReviewPanel node={node} />;
   if (kind === 'text') return <TextEditor node={node} />;
   if (kind === 'code' || kind === 'loop') return <CodeEditor node={node} />;
+  if (kind === 'asset') return <AssetEditor node={node} />;
   return <Inspector />;
 }

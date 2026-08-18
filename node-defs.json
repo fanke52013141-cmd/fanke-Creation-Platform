@@ -1,5 +1,5 @@
 {
-  "version": "3.0.0",
+  "version": "3.1.0",
   "artifactTypes": [
     "Message", "Document", "Prompt", "Shot", "Image", "Audio", "Video",
     "Memory", "ModelRef", "Decision", "Table", "Data"
@@ -10,7 +10,7 @@
       "kind": "chat",
       "name": "对话",
       "icon": "MessageSquare",
-      "description": "多轮对话节点。保留对话历史，靠系统提示词和模型驱动。支持文件上传。",
+      "description": "多轮对话节点。保留对话历史，靠系统提示词和模型驱动。",
       "dynamicPorts": true,
       "allowUpload": true,
       "inputs": [],
@@ -21,7 +21,7 @@
       "kind": "process",
       "name": "处理",
       "icon": "Brain",
-      "description": "单次 LLM 处理节点。接受输入，调用模型，输出结果。一次性的 AI 处理单元。",
+      "description": "单次 LLM 处理节点。接受输入，调用模型，输出结果。",
       "dynamicPorts": true,
       "inputs": [],
       "outputs": []
@@ -44,37 +44,36 @@
       "kind": "code",
       "name": "代码",
       "icon": "Terminal",
-      "description": "Python 脚本执行节点。接收输入，执行代码，输出结果。适用于数据处理、循环、批处理等场景。",
+      "description": "Python 脚本执行节点。接收输入，执行代码，输出结果。",
       "dynamicPorts": true,
       "inputs": [],
-      "outputs": [],
-      "code": "# 输入通过 inputs 字典访问\n# 输出通过 output 变量返回\n# 例：\n# data = inputs.get('input1', [])\n# output = [item for item in data if item.get('active')]\n"
+      "outputs": []
     },
     {
       "id": "loop",
       "kind": "loop",
       "name": "循环",
       "icon": "Repeat",
-      "description": "批处理/循环节点。遍历输入列表，对每个元素执行代码逻辑，聚合结果。",
+      "description": "循环/批处理节点。遍历输入列表，对每个元素触发下游节点批量生成。可插入到流程中（如 处理→循环→图片生成）。",
       "dynamicPorts": true,
-      "inputs": [],
-      "outputs": [],
-      "code": "# 遍历 items 列表，对每个元素处理\n# items = inputs.get('items', [])  # 输入列表\n# 例：\n# results = []\n# for item in items:\n#     result = {'original': item, 'processed': str(item)}\n#     results.append(result)\n# output = {'results': results}\n"
+      "inputs": [
+        { "name": "items", "label": "输入列表", "type": "Data", "isConnection": true, "array": true, "required": true }
+      ],
+      "outputs": [
+        { "name": "results", "label": "循环结果", "type": "Data", "array": true, "provides": ["data"] }
+      ]
     },
     {
       "id": "asset",
       "kind": "asset",
       "name": "资产",
       "icon": "Image",
-      "description": "资产节点。承载图片、音频、视频、文本等媒体资产。支持上传和生成。",
-      "mediaType": "image",
+      "description": "媒体资产节点。点击或拖拽上传图片、视频、音频。节点内显示媒体内容。支持多文件。",
       "inputs": [
-        { "name": "image", "label": "图片输入", "type": "Image", "isConnection": true, "array": true, "required": false, "accepts": ["image"] },
-        { "name": "audio", "label": "音频输入", "type": "Audio", "isConnection": true, "array": true, "required": false, "accepts": ["audio"] },
-        { "name": "video", "label": "视频输入", "type": "Video", "isConnection": true, "array": true, "required": false, "accepts": ["video"] }
+        { "name": "media", "label": "媒体输入", "type": "Image", "isConnection": true, "array": true, "required": false, "accepts": ["image", "audio", "video"] }
       ],
       "outputs": [
-        { "name": "head", "label": "资产输出", "type": "Image", "array": true, "provides": ["image"] }
+        { "name": "media", "label": "媒体输出", "type": "Image", "array": true, "provides": ["image", "audio", "video"] }
       ]
     },
     {
@@ -82,7 +81,7 @@
       "kind": "generator",
       "name": "图片生成",
       "icon": "Wand2",
-      "description": "图片生成节点。调用图片生成 API（如中转站、seedance 等），输入提示词，输出图片。",
+      "description": "图片生成节点。调用图片生成 API，输入提示词，输出图片。可被循环节点驱动批量生成。",
       "modality": "image",
       "dynamicPorts": true,
       "inputs": [
@@ -98,7 +97,7 @@
       "kind": "generator",
       "name": "视频生成",
       "icon": "Clapperboard",
-      "description": "视频生成节点。调用视频生成 API（seedance、MiniMax H3 等），输入提示词，输出视频。",
+      "description": "视频生成节点。调用视频生成 API（seedance、MiniMax H3 等），输入提示词，输出视频。可被循环节点驱动批量生成。",
       "modality": "video",
       "dynamicPorts": true,
       "inputs": [
