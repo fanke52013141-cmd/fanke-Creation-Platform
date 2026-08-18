@@ -129,5 +129,55 @@ async def _run_node(
         results[nid] = out
         if nid not in cycle_nodes:
             cache[key] = out
+
+        # 循环节点特殊处理：遍历输出列表，对每个元素驱动下游节点执行
+        if ndef.kind == "loop":
+            # 找下游节点（以 loop 节点为 source 的边）
+            downstream = [
+                (e.target, e.targetPort)
+                for e in graph.edges
+                if e.source == nid
+            ]
+            if downstream and out:
+                # 取循环的第一个输出作为列表
+                loop_results = None
+                for val in out.values():
+                    if isinstance(val, list):
+                        loop_results = val
+                        break
+                if loop_results:
+                    # 对每个输出元素，重新构建下游输入并执行
+                    for item_idx, item in enumerate(loop_results):
+                        for dn_id, dn_port in downstream:
+                            dn_node = next((n for n in graph.nodes if n.id == dn_id), None)
+                            if not dn_node:
+                                continue
+                            dn_def = defs.get(dn_node.nodeTypeId)
+                            if not dn_def:
+                                continue
+                            # 为下游节点注入当前循环项
+                            dn_inputs = {dn_port: item}
+                            # 如果下游节点已执行过，补上它自己的其他输入
+                            if dn_id in results:
+                                existing = results[dn_id]
+                                if isinstance(existing, dict):
+                                    for k, v in existing.items():
+                                        if k not in dn_inputs:
+                                            dn_inputs[k] = v
+                            try:
+                                dn_out = await run_build(dn_node, dn_def, dn_inputs)
+                                # 合并结果：如果下游节点有多个输出，按 index 合并
+                                if dn_id in results:
+                                    existing = results[dn_id]
+                                    if isinstance(existing, dict) and isinstance(dn_out, dict):
+                                        for k, v in dn_out.items():
+                                            if isinstance(v, list):
+                                                existing[k] = existing.get(k, []) + v
+                                            else:
+                                                existing[k] = v
+                                else:
+                                    results[dn_id] = dn_out
+                            except Exception as exc2:
+                                results[dn_id] = {"error": f"循环项 {item_idx}: {type(exc2).__name__}: {exc2}"}
     except Exception as exc:  # noqa: BLE001
         results[nid] = {"error": f"{type(exc).__name__}: {exc}"}
