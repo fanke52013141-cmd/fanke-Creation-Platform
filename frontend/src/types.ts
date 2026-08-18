@@ -28,7 +28,8 @@ export type NodeKind =
   | 'memory'
   | 'code'
   | 'text'
-  | 'loop';
+  | 'loop'
+  | 'process';
 
 /** 类型重命名迁移表（仿 LangFlow TYPE_MIGRATIONS） */
 export const TYPE_MIGRATIONS: Partial<Record<ArtifactType, ArtifactType>> = {};

@@ -21,7 +21,8 @@ const ICONS: Record<string, LucideIcon> = {
 
 const KIND_LABELS: Record<NodeKind, string> = {
   chat: '对话', generator: '生成', asset: '资产', table: '表格',
-  auto: '自动', review: '审查', memory: '记忆', code: '代码', text: '文本', loop: '循环',
+  auto: '自动', review: '审查', memory: '记忆', code: '代码',
+  text: '文本', loop: '循环', process: '处理',
 };
 
 function PortRow({ port, isInput }: { port: InputPort | OutputPort; isInput: boolean }) {

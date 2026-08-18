@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
+  "version": "3.0.0",
   "artifactTypes": [
     "Message", "Document", "Prompt", "Shot", "Image", "Audio", "Video",
     "Memory", "ModelRef", "Decision", "Table", "Data"
@@ -10,23 +10,21 @@
       "kind": "chat",
       "name": "对话",
       "icon": "MessageSquare",
-      "description": "通用对话节点。靠系统提示词驱动，可动态配置输入输出端口。",
+      "description": "多轮对话节点。保留对话历史，靠系统提示词和模型驱动。支持文件上传。",
       "dynamicPorts": true,
       "allowUpload": true,
       "inputs": [],
       "outputs": []
     },
     {
-      "id": "review",
-      "kind": "review",
-      "name": "审核",
-      "icon": "ClipboardCheck",
-      "description": "审批节点。审核上游产出，通过或驳回。",
+      "id": "process",
+      "kind": "process",
+      "name": "处理",
+      "icon": "Brain",
+      "description": "单次 LLM 处理节点。接受输入，调用模型，输出结果。一次性的 AI 处理单元。",
       "dynamicPorts": true,
       "inputs": [],
-      "outputs": [
-        { "name": "decision", "label": "审批结论", "type": "Decision", "provides": ["decision"] }
-      ]
+      "outputs": []
     },
     {
       "id": "text",
@@ -57,11 +55,59 @@
       "kind": "loop",
       "name": "循环",
       "icon": "Repeat",
-      "description": "批处理/循环节点。遍历输入列表，对每个元素执行子图（代码逻辑），聚合结果。",
+      "description": "批处理/循环节点。遍历输入列表，对每个元素执行代码逻辑，聚合结果。",
       "dynamicPorts": true,
       "inputs": [],
       "outputs": [],
-      "code": "# 遍历 items 列表，对每个元素处理\n# items = inputs.get('items', [])  # 输入的列表\n# 输出聚合结果\n# 例：\n# results = []\n# for item in items:\n#     result = {'original': item, 'processed': str(item)}\n#     results.append(result)\n# output = {'results': results}\n"
+      "code": "# 遍历 items 列表，对每个元素处理\n# items = inputs.get('items', [])  # 输入列表\n# 例：\n# results = []\n# for item in items:\n#     result = {'original': item, 'processed': str(item)}\n#     results.append(result)\n# output = {'results': results}\n"
+    },
+    {
+      "id": "asset",
+      "kind": "asset",
+      "name": "资产",
+      "icon": "Image",
+      "description": "资产节点。承载图片、音频、视频、文本等媒体资产。支持上传和生成。",
+      "mediaType": "image",
+      "inputs": [
+        { "name": "image", "label": "图片输入", "type": "Image", "isConnection": true, "array": true, "required": false, "accepts": ["image"] },
+        { "name": "audio", "label": "音频输入", "type": "Audio", "isConnection": true, "array": true, "required": false, "accepts": ["audio"] },
+        { "name": "video", "label": "视频输入", "type": "Video", "isConnection": true, "array": true, "required": false, "accepts": ["video"] }
+      ],
+      "outputs": [
+        { "name": "head", "label": "资产输出", "type": "Image", "array": true, "provides": ["image"] }
+      ]
+    },
+    {
+      "id": "image-generator",
+      "kind": "generator",
+      "name": "图片生成",
+      "icon": "Wand2",
+      "description": "图片生成节点。调用图片生成 API（如中转站、seedance 等），输入提示词，输出图片。",
+      "modality": "image",
+      "dynamicPorts": true,
+      "inputs": [
+        { "name": "prompt", "label": "提示词", "type": "Prompt", "isConnection": true, "required": true, "accepts": ["prompt"] },
+        { "name": "negativePrompt", "label": "反向提示词", "type": "Prompt", "isConnection": true, "required": false }
+      ],
+      "outputs": [
+        { "name": "images", "label": "生成图片", "type": "Image", "array": true, "provides": ["image"] }
+      ]
+    },
+    {
+      "id": "video-generator",
+      "kind": "generator",
+      "name": "视频生成",
+      "icon": "Clapperboard",
+      "description": "视频生成节点。调用视频生成 API（seedance、MiniMax H3 等），输入提示词，输出视频。",
+      "modality": "video",
+      "dynamicPorts": true,
+      "inputs": [
+        { "name": "prompt", "label": "提示词", "type": "Prompt", "isConnection": true, "required": true, "accepts": ["prompt"] },
+        { "name": "image", "label": "参考图片", "type": "Image", "isConnection": true, "required": false, "accepts": ["image"] }
+      ],
+      "outputs": [
+        { "name": "videos", "label": "生成视频", "type": "Video", "array": true, "provides": ["video"] }
+      ]
     }
   ]
 }

@@ -240,8 +240,17 @@ async def run_build(node, ndef: NodeDef, inputs: dict) -> dict:
         if ndef.dynamicPorts:
             return {o["name"]: result.get(o["name"]) for o in outputs_def}
         return result
+    if ndef.kind == "process":
+        # 单次 LLM 处理节点（原审核的泛化）：同 review 逻辑，一次调用
+        result = await review_default(node, ndef, inputs)
+        if ndef.dynamicPorts:
+            return {o["name"]: result.get(o["name"]) for o in outputs_def}
+        return result
     if ndef.kind == "generator":
-        result = await generator_default(node, ndef, inputs)
+        if ndef.modality == "video":
+            result = await generator_video_default(node, ndef, inputs)
+        else:
+            result = await generator_default(node, ndef, inputs)
         return result
     if ndef.kind == "memory":
         result = {o.name: {"sessionId": f"mem-{node.id}", "messages": []} for o in ndef.outputs}
@@ -362,3 +371,35 @@ async def loop_default(node, ndef: NodeDef, inputs: dict, outputs_def: list) -> 
         name = o["name"] if isinstance(o, dict) else o.name
         output[name] = results
     return output
+
+
+async def generator_video_default(node, ndef: NodeDef, inputs: dict) -> dict:
+    """视频生成节点（P0 占位）。
+
+    兼容 seedance 2.0/2.5 和 MiniMax H3 接口。
+    配置方式：node.data.provider 指定 'seedance' 或 'minimax'。
+    未配置时返回 Mock 占位。
+    """
+    provider = node.data.get("provider", "mock") if isinstance(node.data, dict) else "mock"
+    prompt = inputs.get("prompt", "")
+    if isinstance(prompt, list):
+        prompt = prompt[0] if prompt else ""
+    if isinstance(prompt, dict):
+        prompt = prompt.get("text", "") or prompt.get("prompt", "")
+
+    if provider == "mock":
+        # Mock 占位
+        return {
+            "videos": [{
+                "id": f"vid-mock-{id(node)}",
+                "url": "",
+                "durationMs": 5000,
+                "mime": "video/mp4",
+                "prompt": str(prompt)[:50],
+            }]
+        }
+
+    # 真实视频生成（P6 实现）
+    # seedance: https://api.seedance.io/v1/videos/generations
+    # MiniMax H3: 参考 workflow 配置
+    raise NotImplementedError(f"视频生成 provider '{provider}' 尚未接入")
