@@ -1,24 +1,44 @@
 /**
- * 节点定义数据源：import 项目根目录 node-defs.json（单一事实来源，经 vite alias @node-defs 映射）。
- * 加新节点 = 改 node-defs.json + 后端 nodes/runtime.py 注册 build，前端零改动。
+ * 节点定义注册表：从 manifests/ 目录加载所有节点定义。
+ * 单一事实来源：manifests/*.json（前后端共享）。
+ * 加新节点 = 在 manifests/ 加 JSON + 在后端注册 builder，前端零改动。
  */
-import raw from '@node-defs';
-import type { NodeDef, ArtifactType } from '../types';
+import type { NodeManifest } from '../types';
 
-interface NodeDefsFile {
-  version: string;
-  artifactTypes: ArtifactType[];
-  nodes: NodeDef[];
+// vite 配置将 manifests/ 目录映射为 @manifests 别名，批量导入所有 JSON
+const manifestModules = import.meta.glob('/manifests/*.json', { eager: true });
+
+/** { manifestId: NodeManifest } */
+export const MANIFEST_MAP: Record<string, NodeManifest> = {};
+
+for (const [, mod] of Object.entries(manifestModules)) {
+  const m = (mod as { default: NodeManifest }).default;
+  MANIFEST_MAP[m.id] = m;
 }
 
-const data = raw as NodeDefsFile;
+export const ALL_MANIFESTS: NodeManifest[] = Object.values(MANIFEST_MAP).sort((a, b) => {
+  const order = ['chat', 'process', 'generator', 'data', 'code', 'group', 'loop', 'branch', 'output', 'preview'];
+  return order.indexOf(a.id) - order.indexOf(b.id);
+});
 
-export const ARTIFACT_TYPES: ArtifactType[] = data.artifactTypes;
-export const NODE_DEFS: NodeDef[] = data.nodes;
+export const getManifest = (id: string): NodeManifest | undefined => MANIFEST_MAP[id];
 
-/** { nodeDefId: NodeDef } 索引，供渲染与连线校验快速查找 */
-export const NODE_DEF_MAP: Record<string, NodeDef> = Object.fromEntries(
-  data.nodes.map((n) => [n.id, n]),
-);
+// 兼容旧版 store.ts 的引用（保持 NODE_DEF_MAP/getNodeDef 名字）
+/** @deprecated 使用 getManifest */
+export const NODE_DEF_MAP = MANIFEST_MAP;
+/** @deprecated 使用 getManifest */
+export const getNodeDef = getManifest as (id: string) => any;
 
-export const getNodeDef = (id: string): NodeDef | undefined => NODE_DEF_MAP[id];
+// ============ V12 启动断言 ============
+
+/**
+ * 检查所有模板/预设引用的 manifestId 是否都在注册表中。
+ * 在应用启动时调用，不通过则拒绝加载。
+ */
+export function checkV12(templateReferences: string[]): string[] {
+  const missing = templateReferences.filter((tid) => !(tid in MANIFEST_MAP));
+  if (missing.length > 0) {
+    console.error(`[V12] 模板引用了不存在的 manifestId: ${missing.join(', ')}`);
+  }
+  return missing;
+}

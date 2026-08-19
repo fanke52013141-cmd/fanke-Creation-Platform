@@ -1,129 +1,170 @@
 /**
- * 前端类型系统 —— 与后端 backend/app/types.py 完全对齐。
- * 字符串常量必须与 node-defs.json（单一事实来源）一致。
+ * 节点类型系统（v2.1 定稿）—— 与 backend/app/types.py 完全镜像。
+ * 单一事实来源：manifests/*.json。
  */
 
-/** 所有可在连线上流动的类型（typed socket 的"形状"） */
-export type ArtifactType =
-  | 'Message'
-  | 'Document'
-  | 'Prompt'
-  | 'Shot'
-  | 'Image'
-  | 'Audio'
-  | 'Video'
-  | 'Memory'
-  | 'ModelRef'
-  | 'Decision'
-  | 'Table'
-  | 'Data';
+// ============ 基础 ============
 
 export type NodeKind =
-  | 'chat'
-  | 'generator'
-  | 'asset'
-  | 'table'
-  | 'auto'
-  | 'review'
-  | 'memory'
-  | 'code'
-  | 'text'
-  | 'loop'
-  | 'process';
+  | 'chat' | 'process' | 'generator' | 'data' | 'code'
+  | 'group' | 'loop' | 'branch' | 'output' | 'preview';
 
-/** 类型重命名迁移表（仿 LangFlow TYPE_MIGRATIONS） */
-export const TYPE_MIGRATIONS: Partial<Record<ArtifactType, ArtifactType>> = {};
+export type NodeCategory = 'core' | 'flow' | 'utility';
 
-export interface InputPort {
+export type ExecutionClass = 'instant' | 'interactive';
+
+export type BaseType =
+  | 'string' | 'integer' | 'number' | 'boolean'
+  | 'time' | 'object' | 'list' | 'file';
+
+export type FileSubType =
+  | 'image' | 'audio' | 'video' | 'document' | 'code' | 'default';
+
+export type SemanticType =
+  | 'prompt' | 'document' | 'decision' | 'shot' | 'storyboard' | 'asset-list';
+
+export type FieldEditor =
+  | 'text' | 'multiline' | 'number' | 'slider' | 'dropdown'
+  | 'toggle' | 'file' | 'code' | 'json' | 'hidden';
+
+// ============ 参数 ============
+
+export type ParamSource =
+  | { kind: 'value'; value: unknown }
+  | { kind: 'ref'; nodeId: string; outputPath: string };
+
+export interface ParamSchema {
   name: string;
-  type: ArtifactType;
-  array?: boolean;
+  label: string;
+  desc?: string;
   required?: boolean;
-  isConnection?: boolean;
-  label?: string;
-  description?: string;
-  editor?: 'text' | 'multiline' | 'dropdown' | 'slider' | 'number' | 'file' | 'toggle' | 'hidden';
+  type: BaseType;
+  semantic?: SemanticType;
+  fileSubType?: FileSubType;
+  items?: ParamSchema;
+  properties?: ParamSchema[];
+  defaultFrom?: ParamSource;
+  editor?: FieldEditor;
   options?: string[];
+}
+
+// ============ 配置字段 ============
+
+export interface ConfigField {
+  key: string;
+  label: string;
+  desc?: string;
+  type: BaseType;
+  required?: boolean;
   defaultValue?: unknown;
-  /** 语义标签（自动连线用）：接受哪些语义物，如 ["brief"] */
-  accepts?: string[];
+  editor: FieldEditor;
+  options?: string[];
+  range?: { min: number; max: number; step?: number };
 }
 
-export interface OutputPort {
-  name: string;
-  type: ArtifactType;
-  array?: boolean;
-  label?: string;
-  method?: string;
-  /** 语义标签（自动连线用）：提供哪些语义物，如 ["brief"] */
-  provides?: string[];
-}
+// ============ Manifest（节点定义） ============
 
-export interface NodeDef {
+export interface NodeManifest {
+  schemaVersion: string;
   id: string;
   kind: NodeKind;
   name: string;
+  nameForModel?: string;
+  description: string;
   icon?: string;
-  description?: string;
-  inputs: InputPort[];
-  outputs: OutputPort[];
-  // chat
-  systemPrompt?: string;
-  model?: { providerId: string; modelId: string; variant?: string };
-  allowUpload?: boolean;
-  // auto
-  fn?: string;
-  // generator
-  modality?: 'image' | 'audio' | 'video';
-  providerId?: string;
-  modelId?: string;
-  params?: Record<string, unknown>;
-  // review
-  onRejectNodeId?: string;
-  // table
-  editorHint?: string;
-  // 通用节点
-  dynamicPorts?: boolean;
-  code?: string;
+  category: NodeCategory;
+  execution: ExecutionClass;
+  dynamicParams: boolean;
+  inputs: ParamSchema[];
+  outputs: ParamSchema[];
+  config: ConfigField[];
 }
 
-/** 画布节点实例的自定义 data */
-export interface CanvasNodeData extends Record<string, unknown> {
+// ============ 实例与状态 ============
+
+export type NodeStatus =
+  | 'idle' | 'ready' | 'running' | 'awaiting-human'
+  | 'done' | 'error' | 'skipped' | 'stale' | 'cached';
+
+export interface NodeState {
+  status: NodeStatus;
+  outputs?: Record<string, unknown>;
+  error?: string;
+  progress?: number;
+  startedAt?: number;
+  finishedAt?: number;
+}
+
+export interface NodeInstance {
+  id: string;
+  manifestId: string;
+  name: string;
+  position: { x: number; y: number };
+  inputs: Record<string, ParamSource | ParamSource[]>;
+  config: Record<string, unknown>;
+  paramSchemas?: { inputs: ParamSchema[]; outputs: ParamSchema[] };
+  state?: NodeState;
+}
+
+// ============ 图（混合关系） ============
+
+export interface ControlLink {
+  source: string;   // 源节点 id（Python 侧字段名）
+  target: string;   // 目标节点 id
+  kind: 'drive' | 'rerun';
+  label?: string;
+}
+
+export interface Graph {
+  schemaVersion: string;
+  nodes: NodeInstance[];
+  links: ControlLink[];
+  viewport?: { x: number; y: number; zoom: number };
+  nodeStates?: Record<string, NodeState>;
+}
+
+// ============ 兼容旧版类型（P0 过渡期用，后续逐步移除） ============
+
+/** @deprecated 使用 NodeInstance */
+export interface CanvasNodeData {
   nodeTypeId: string;
-  /** 参数面板编辑的值（对应 InputPort 中 isConnection=false 的字段） */
+  config?: Record<string, unknown>;
   params?: Record<string, unknown>;
-  /** 动态端口节点：用户自定义的输入输出端口 */
-  ports?: { inputs: InputPort[]; outputs: OutputPort[] };
-  /** 代码节点：Python 代码 */
-  code?: string;
-  /** 对话节点：系统提示词（实例级覆盖） */
-  systemPrompt?: string;
-  /** 对话节点：模型引用（实例级覆盖） */
-  model?: { providerId: string; modelId: string; variant?: string };
 }
 
-/** 与后端 Graph / Edge 对齐的 payload（执行时发送） */
+/** @deprecated */
 export interface EdgePayload {
   source: string;
   sourcePort: string;
   target: string;
   targetPort: string;
-  via: ArtifactType;
+  via: string;
 }
 
-export interface GraphNodePayload {
-  id: string;
-  nodeTypeId: string;
-  position: { x: number; y: number };
-  data: Record<string, unknown>;
-}
-
+/** @deprecated */
 export interface GraphPayload {
-  nodes: GraphNodePayload[];
+  nodes: Array<{ id: string; nodeTypeId: string; position: { x: number; y: number }; data: Record<string, unknown> }>;
   edges: EdgePayload[];
 }
 
-/** 每帧执行结果 */
-export interface ExecutionResult {
-  results: Record<string, unknown>;
+// @deprecated 旧版 ArtifactType/NodeDef 等，保持 connections.ts/derive.ts 可编译
+export type ArtifactType = string;
+export interface NodeDef {
+  id: string;
+  kind: string;
+  name: string;
+  icon?: string;
+  description?: string;
+  inputs: Array<{ name: string; type: string; isConnection?: boolean; required?: boolean; label?: string; description?: string; editor?: string; options?: string[]; defaultValue?: unknown; accepts?: string[] }>;
+  outputs: Array<{ name: string; type: string; provides?: string[] }>;
+  systemPrompt?: string;
+  dynamicPorts?: boolean;
+}
+export const TYPE_MIGRATIONS: Record<string, string> = {};
+
+export interface RefIssue {
+  level: 'error' | 'warn';
+  message: string;
+  nodeId?: string;
+  rule?: string;
 }

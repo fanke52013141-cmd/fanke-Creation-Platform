@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "v1",
+  "id": "generator",
+  "kind": "generator",
+  "name": "生成",
+  "nameForModel": "generator",
+  "description": "调 API 生成图片/视频。一个节点覆盖所有 provider。支持分层配置合并，双输出（媒体 + 确定性种子参数）。",
+  "icon": "Wand2",
+  "category": "core",
+  "execution": "instant",
+  "dynamicParams": false,
+  "inputs": [
+    { "name": "prompt", "label": "提示词", "type": "string", "required": true, "semantic": "prompt" },
+    { "name": "negativePrompt", "label": "负面提示词", "type": "string", "required": false, "semantic": "prompt" },
+    { "name": "refImage", "label": "参考图", "type": "list", "required": false, "items": { "type": "file", "fileSubType": "image" } }
+  ],
+  "outputs": [
+    { "name": "images", "label": "图片", "type": "list", "items": { "type": "file", "fileSubType": "image" } },
+    { "name": "videos", "label": "视频", "type": "list", "items": { "type": "file", "fileSubType": "video" } },
+    { "name": "seed", "label": "种子", "type": "integer" }
+  ],
+  "config": [
+    { "key": "modality", "label": "生成类型", "type": "string", "editor": "dropdown", "defaultValue": "image", "options": ["image", "video"] },
+    { "key": "providerId", "label": "Provider", "type": "string", "editor": "dropdown" },
+    { "key": "modelId", "label": "模型", "type": "string", "editor": "dropdown" },
+    { "key": "aspectRatio", "label": "画面比例", "type": "string", "editor": "dropdown", "defaultValue": "1:1", "options": ["1:1", "16:9", "9:16", "4:3", "3:4"] },
+    { "key": "resolution", "label": "分辨率", "type": "string", "editor": "dropdown", "defaultValue": "1k", "options": ["1k", "2k", "4k"] },
+    { "key": "seed", "label": "种子", "type": "integer", "editor": "number" },
+    { "key": "count", "label": "生成数量", "type": "integer", "editor": "number", "defaultValue": 1 },
+    { "key": "retries", "label": "重试次数", "type": "integer", "editor": "number", "defaultValue": 1 },
+    { "key": "params", "label": "额外参数", "type": "object", "editor": "json", "defaultValue": {} }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "v1",
+  "id": "group",
+  "kind": "group",
+  "name": "分组",
+  "nameForModel": "group",
+  "description": "子流容器。多个节点打包成一个可连线单元，折叠/展开。成员按引用聚合，不复制。",
+  "icon": "FolderOpen",
+  "category": "core",
+  "execution": "instant",
+  "dynamicParams": true,
+  "inputs": [],
+  "outputs": [],
+  "config": [
+    { "key": "memberIds", "label": "成员节点 ID", "type": "list", "editor": "hidden", "defaultValue": [], "items": { "type": "string" } },
+    { "key": "exposedInputs", "label": "暴露的输入", "type": "object", "editor": "json", "defaultValue": {} },
+    { "key": "exposedOutputs", "label": "暴露的输出", "type": "object", "editor": "json", "defaultValue": {} }
+  ]
+}

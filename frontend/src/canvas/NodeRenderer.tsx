@@ -1,108 +1,185 @@
 /**
  * 通用节点渲染器（schema 驱动，仿 LangFlow GenericNode）。
- * 根据 node-defs.json 的 inputs/outputs 自动渲染插口与参数字段。
- * 动态端口节点（dynamicPorts=true）从 node.data.ports 读取端口定义。
+ * 三段式：header（标题/类型/执行徽标）+ body（内容显化区）+ footer（端口）。
  */
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import {
-  Archive, Brain, Clapperboard, ClipboardCheck, FileText, FolderOpen,
-  HelpCircle, Image as ImageIcon, Lightbulb, MessageSquare, Package,
-  Palette, Repeat, Terminal, Wand2, type LucideIcon,
+  Check, X, AlertTriangle, Clock, Loader, Eye, Copy,
+  HelpCircle, Image as ImageIcon, MessageSquare, type LucideIcon,
 } from 'lucide-react';
+import { useState, useCallback } from 'react';
 
-import { getNodeDef } from '../data/nodeDefs';
+import { getManifest } from '../data/nodeDefs';
 import { inHandleId, outHandleId } from '../engine/connections';
-import type { CanvasNodeData, InputPort, NodeKind, OutputPort } from '../types';
+import type { ParamSchema } from '../types';
 
-const ICONS: Record<string, LucideIcon> = {
-  Lightbulb, ClipboardCheck, Palette, Package, Clapperboard, Wand2,
-  ImageIcon, Archive, Brain, FolderOpen, MessageSquare, FileText, Terminal, Repeat,
+// ============ 图标映射 ============
+
+const KIND_ICONS: Record<string, LucideIcon> = {
+  chat: MessageSquare, process: MessageSquare, generator: ImageIcon,
+  data: ImageIcon, code: HelpCircle, group: HelpCircle, loop: HelpCircle,
+  branch: HelpCircle, output: HelpCircle, preview: Eye,
 };
 
-const KIND_LABELS: Record<NodeKind, string> = {
-  chat: '对话', generator: '生成', asset: '资产', table: '表格',
-  auto: '自动', review: '审查', memory: '记忆', code: '代码',
-  text: '文本', loop: '循环', process: '处理',
+const KIND_LABELS: Record<string, string> = {
+  chat: '对话', process: '处理', generator: '生成', data: '数据',
+  code: '代码', group: '分组', loop: '循环', branch: '分支',
+  output: '输出', preview: '预览',
 };
 
-function PortRow({ port, isInput }: { port: InputPort | OutputPort; isInput: boolean }) {
-  const p = port as unknown as Record<string, unknown>;
-  const name = p.name as string;
-  const label = (p.label as string) || name;
-  const type = p.type as string || '';
-  const isArray = p.array as boolean;
-  const isReq = p.required as boolean;
+// ============ 状态徽标 ============
+
+const STATUS_CONFIG: Record<string, { icon: LucideIcon; label: string; color: string }> = {
+  'awaiting-human': { icon: Clock, label: '等待人工', color: '#f2994a' },
+  'stale': { icon: AlertTriangle, label: '已过期', color: '#e67e22' },
+  'cached': { icon: Clock, label: '缓存', color: '#219653' },
+  'error': { icon: X, label: '错误', color: '#c0392b' },
+  'skipped': { icon: X, label: '已跳过', color: '#95a5a6' },
+  'running': { icon: Loader, label: '运行中', color: '#4c5cff' },
+  'done': { icon: Check, label: '完成', color: '#219653' },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status];
+  if (!cfg) return null;
+  const Icon = cfg.icon;
   return (
-    <div className={`wf-port wf-port--${isInput ? 'in' : 'out'}`} key={name}>
-      {isInput && (
-        <Handle
-          type="target"
-          position={Position.Left}
-          id={inHandleId(name)}
-          className="wf-handle"
-        />
+    <span className="wf-node__status-badge" style={{ color: cfg.color, borderColor: cfg.color }}>
+      <Icon size={10} />
+      <span>{cfg.label}</span>
+    </span>
+  );
+}
+
+// ============ 内容显化 ============
+
+function NodeBody({ data, manifest }: { data: Record<string, unknown>; manifest: { id: string; kind: string; outputs: ParamSchema[] } }) {
+  // 状态徽标
+  const status = data._status as string | undefined;
+  const outputs = data._outputs as Record<string, unknown> | undefined;
+
+  // 收集图片
+  const images: Array<{ url: string; id: string }> = [];
+  if (outputs) {
+    for (const v of Object.values(outputs)) {
+      if (Array.isArray(v)) {
+        for (const item of v) {
+          if (item && typeof item === 'object' && 'url' in (item as object)) {
+            const img = item as { url: string; id?: string };
+            images.push({ url: img.url, id: img.id || img.url });
+          }
+        }
+      }
+    }
+  }
+
+  // 收集文本
+  let textPreview = '';
+  if (outputs) {
+    for (const v of Object.values(outputs)) {
+      if (typeof v === 'string') { textPreview = v; break; }
+      if (v && typeof v === 'object' && 'markdown' in (v as object)) {
+        textPreview = (v as { markdown: string }).markdown.slice(0, 120);
+        break;
+      }
+    }
+  }
+
+  return (
+    <div className="wf-node__body">
+      {status && <StatusBadge status={status} />}
+
+      {images.length > 0 && (
+        <div className="wf-node__images">
+          {images.slice(0, 6).map((img, i) => (
+            <img
+              key={img.id}
+              src={img.url}
+              alt={`img-${i}`}
+              className="wf-node__thumb"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/plain', `{{${data.nodeTypeId}.images[${i}]}}`);
+              }}
+            />
+          ))}
+          {images.length > 6 && (
+            <span className="wf-node__more">+{images.length - 6}</span>
+          )}
+        </div>
       )}
-      <span className="wf-port__name">{label}</span>
-      {isArray && <span className="wf-port__badge">[]</span>}
-      {isReq && <span className="wf-port__badge wf-port__badge--req">必填</span>}
-      {!isInput && (
-        <>
-          <span className="wf-port__type">{type}</span>
-          <Handle
-            type="source"
-            position={Position.Right}
-            id={outHandleId(name)}
-            className="wf-handle"
-          />
-        </>
+
+      {textPreview && images.length === 0 && (
+        <div className="wf-node__text-preview">
+          <span className="wf-node__text-content">{textPreview}</span>
+        </div>
+      )}
+
+      {!status && !images.length && !textPreview && (
+        <div className="wf-node__empty">就绪</div>
       )}
     </div>
   );
 }
 
-export default function NodeRenderer({ data, selected }: NodeProps<Node<CanvasNodeData>>) {
-  const def = getNodeDef(data.nodeTypeId);
-  if (!def) {
+// ============ 端口 ============
+
+function ParamPort({ param, isInput }: { param: ParamSchema; isInput: boolean }) {
+  const isArray = param.items !== undefined;
+  const isReq = param.required === true;
+  return (
+    <div className={`wf-port wf-port--${isInput ? 'in' : 'out'}`} key={param.name}>
+      {isInput && (
+        <Handle type="target" position={Position.Left} id={inHandleId(param.name)} className="wf-handle" />
+      )}
+      <span className="wf-port__name">{param.label || param.name}</span>
+      {isArray && <span className="wf-port__badge">[]</span>}
+      {isReq && <span className="wf-port__badge wf-port__badge--req">必填</span>}
+      {param.semantic && <span className="wf-port__badge">{param.semantic}</span>}
+      {!isInput && (
+        <Handle type="source" position={Position.Right} id={outHandleId(param.name)} className="wf-handle" />
+      )}
+    </div>
+  );
+}
+
+// ============ 主渲染器 ============
+
+export default function NodeRenderer({ data, selected }: NodeProps<Node<{ nodeTypeId: string; config?: Record<string, unknown> }>>) {
+  const manifest = getManifest(data.nodeTypeId);
+  if (!manifest) {
     return <div className="wf-node wf-node--unknown">未知节点: {data.nodeTypeId}</div>;
   }
-  const Icon = ICONS[def.icon ?? ''] ?? HelpCircle;
-  const params = (data.params ?? {}) as Record<string, unknown>;
-
-  // 抑制 params 未使用警告（后续用于显示参数值）
-  void params;
-
-  // 动态端口：从 data.ports 读取
-  const ports = data.ports as { inputs?: InputPort[]; outputs?: OutputPort[] } | undefined;
-  const inputPorts = def.dynamicPorts ? (ports?.inputs ?? []) : def.inputs;
-  const outputPorts = def.dynamicPorts ? (ports?.outputs ?? []) : def.outputs;
+  const Icon = KIND_ICONS[manifest.kind] ?? HelpCircle;
+  const inputPorts = manifest.inputs;
+  const outputPorts = manifest.outputs;
 
   return (
-    <div className={`wf-node wf-node--${def.kind}${selected ? ' is-selected' : ''}`}>
+    <div className={`wf-node wf-node--${manifest.kind}${selected ? ' is-selected' : ''}`}>
+      {/* Header */}
       <div className="wf-node__header">
         <Icon size={14} className="wf-node__icon" />
-        <span className="wf-node__title">{def.name}</span>
-        <span className="wf-node__kind">{KIND_LABELS[def.kind]}</span>
+        <span className="wf-node__title">{manifest.name}</span>
+        <span className="wf-node__kind">{KIND_LABELS[manifest.kind] || manifest.kind}</span>
+        {manifest.execution === 'interactive' && <span className="wf-node__exec-badge">需人工</span>}
       </div>
 
-      {def.description && <div className="wf-node__desc">{def.description}</div>}
+      {/* Body — 内容显化区 */}
+      <NodeBody data={data as Record<string, unknown>} manifest={manifest as { id: string; kind: string; outputs: ParamSchema[] }} />
 
+      {/* Footer — 端口 */}
       <div className="wf-node__ports">
         <div className="wf-node__inputs">
-          {inputPorts.length === 0 && !def.dynamicPorts && (
-            <div className="wf-port wf-port--in" style={{ color: '#a0a6b6', fontSize: 11 }}>
-              无输入
-            </div>
+          {inputPorts.length === 0 && !manifest.dynamicParams && (
+            <div className="wf-port wf-port--in" style={{ color: '#a0a6b6', fontSize: 11 }}>无输入</div>
           )}
-          {inputPorts.map((port) => <PortRow key={port.name} port={port} isInput />)}
+          {inputPorts.map((port) => <ParamPort key={port.name} param={port} isInput />)}
         </div>
-
         <div className="wf-node__outputs">
-          {outputPorts.length === 0 && !def.dynamicPorts && (
-            <div className="wf-port wf-port--out" style={{ color: '#a0a6b6', fontSize: 11 }}>
-              无输出
-            </div>
+          {outputPorts.length === 0 && !manifest.dynamicParams && (
+            <div className="wf-port wf-port--out" style={{ color: '#a0a6b6', fontSize: 11 }}>无输出</div>
           )}
-          {outputPorts.map((port) => <PortRow key={port.name} port={port} isInput={false} />)}
+          {outputPorts.map((port) => <ParamPort key={port.name} param={port} isInput={false} />)}
         </div>
       </div>
     </div>

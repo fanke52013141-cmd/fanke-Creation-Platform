@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "v1",
+  "id": "process",
+  "kind": "process",
+  "name": "处理",
+  "nameForModel": "process",
+  "description": "单次 LLM 变换，无状态。输入 → 提示词模板 → 输出。结果直接显示在节点上，可复制粘贴。配不同模板可充当审查、资产计划等角色。",
+  "icon": "Brain",
+  "category": "core",
+  "execution": "instant",
+  "dynamicParams": true,
+  "inputs": [],
+  "outputs": [],
+  "config": [
+    { "key": "promptTemplate", "label": "提示词模板", "type": "string", "editor": "multiline", "defaultValue": "" },
+    { "key": "model", "label": "模型", "type": "object", "required": true, "editor": "dropdown" },
+    { "key": "temperature", "label": "温度", "type": "number", "editor": "slider", "defaultValue": 0.3, "range": { "min": 0, "max": 2, "step": 0.1 } },
+    { "key": "maxTokens", "label": "最大输出 Token", "type": "integer", "editor": "number" },
+    { "key": "outputMode", "label": "输出模式", "type": "string", "editor": "dropdown", "defaultValue": "auto", "options": ["text", "json", "auto"] },
+    { "key": "retries", "label": "重试次数", "type": "integer", "editor": "number", "defaultValue": 0 }
+  ]
+}

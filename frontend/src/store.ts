@@ -23,7 +23,9 @@ import type { CanvasNodeData, EdgePayload, GraphPayload } from './types';
 interface CanvasState {
   nodes: Node<CanvasNodeData>[];
   edges: Edge[];
+  controlLinks: Edge[];  // 控制链接（虚线，drive/rerun）
   selectedNodeId: string | null;
+  selectedNodeIds: string[];  // 多选/框选节点 id
   isExecuting: boolean;
   execResults: Record<string, unknown> | null;
   execError: string | null;
@@ -35,6 +37,7 @@ interface CanvasState {
   addNode: (nodeTypeId: string, position?: { x: number; y: number }) => void;
   removeNode: (nodeId: string) => void;
   selectNode: (nodeId: string | null) => void;
+  setSelection: (ids: string[]) => void;
   updateNodeParams: (nodeId: string, params: Record<string, unknown>) => void;
   updateNodeData: (nodeId: string, key: string, value: unknown) => void;
   autoConnect: () => void;
@@ -44,6 +47,8 @@ interface CanvasState {
   setExecResults: (r: Record<string, unknown> | null) => void;
   setExecError: (e: string | null) => void;
   toGraphPayload: () => GraphPayload;
+  /** 获取选中节点的子图（包含连同的边） */
+  getSelectedGraph: () => { nodes: Node<CanvasNodeData>[]; edges: Edge[] } | null;
 }
 
 const nodeById = (nodes: Node<CanvasNodeData>[]) =>
@@ -52,7 +57,9 @@ const nodeById = (nodes: Node<CanvasNodeData>[]) =>
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: [],
   edges: [],
+  controlLinks: [],
   selectedNodeId: null,
+  selectedNodeIds: [],
   isExecuting: false,
   execResults: null,
   execError: null,
@@ -97,6 +104,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   selectNode: (nodeId) => set({ selectedNodeId: nodeId }),
 
+  setSelection: (ids) => set({ selectedNodeIds: ids }),
+
   updateNodeParams: (nodeId, params) =>
     set({
       nodes: get().nodes.map((n) =>
@@ -127,7 +136,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ edges });
   },
 
-  clearCanvas: () => set({ nodes: [], edges: [], selectedNodeId: null }),
+  clearCanvas: () => set({ nodes: [], edges: [], controlLinks: [], selectedNodeId: null, selectedNodeIds: [], execResults: null, execError: null }),
 
   loadProject: (nodes, edges) =>
     set({ nodes, edges, selectedNodeId: null, execResults: null, execError: null }),
@@ -167,5 +176,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       })),
       edges: edgePayloads,
     };
+  },
+
+  getSelectedGraph: () => {
+    const { nodes, edges } = get();
+    const selectedIds = get().selectedNodeIds;
+    if (selectedIds.length === 0) return null;
+    const selectedSet = new Set(selectedIds);
+    const filteredNodes = nodes.filter((n) => selectedSet.has(n.id));
+    const filteredEdges = edges.filter((e) => selectedSet.has(e.source) && selectedSet.has(e.target));
+    return { nodes: filteredNodes, edges: filteredEdges };
   },
 }));

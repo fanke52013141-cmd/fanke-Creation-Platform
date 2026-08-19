@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "v1",
+  "id": "loop",
+  "kind": "loop",
+  "name": "循环",
+  "nameForModel": "loop",
+  "description": "有界迭代驱动。通过 drive 控制链接指向循环体头节点，引擎展开执行 N 次。支持按轮数、按输入数组、按提示词列表三种迭代模式。",
+  "icon": "Repeat",
+  "category": "flow",
+  "execution": "instant",
+  "dynamicParams": false,
+  "inputs": [
+    { "name": "input", "label": "输入数组", "type": "list", "required": false, "items": { "type": "object" } },
+    { "name": "prompt", "label": "提示词模板", "type": "string", "required": false, "semantic": "prompt" }
+  ],
+  "outputs": [
+    { "name": "output", "label": "输出数组", "type": "list", "items": { "type": "object" } }
+  ],
+  "config": [
+    { "key": "mode", "label": "迭代模式", "type": "string", "editor": "dropdown", "defaultValue": "count", "options": ["count", "iterate-array", "iterate-prompts"] },
+    { "key": "count", "label": "轮数", "type": "integer", "editor": "number", "defaultValue": 1 },
+    { "key": "arrayInputPort", "label": "数组输入端口名", "type": "string", "editor": "text" },
+    { "key": "batchSize", "label": "每轮元素数", "type": "integer", "editor": "number", "defaultValue": 1 },
+    { "key": "startOffset", "label": "起始偏移", "type": "integer", "editor": "number", "defaultValue": 1 },
+    { "key": "prompts", "label": "提示词列表", "type": "string", "editor": "multiline", "defaultValue": "" },
+    { "key": "execution", "label": "执行方式", "type": "string", "editor": "dropdown", "defaultValue": "serial", "options": ["serial", "parallel"] },
+    { "key": "parallelLimit", "label": "并发上限", "type": "integer", "editor": "number", "defaultValue": 3 },
+    { "key": "maxIterations", "label": "最大迭代次数", "type": "integer", "editor": "number", "defaultValue": 100 },
+    { "key": "perRoundOutputSlot", "label": "每轮独立展示", "type": "boolean", "editor": "toggle", "defaultValue": true }
+  ]
+}

@@ -1,47 +1,96 @@
 /**
- * 顶部工具栏：自动连线 / 执行画布 / 保存加载 / 模板 / 清空。
+ * 顶部工具栏：执行全部 / 执行选中 / 保存加载 / 清空。
+ * 支持框选执行：选中部分节点后点"执行选中"只运行子图。
  */
-import { useCallback, useState } from 'react';
-import { Download, LayoutTemplate, Loader2, Play, Save, Trash2, Upload, Wand2 } from 'lucide-react';
-import { executeGraph, fetchTemplates, type TemplateDef } from '../api';
+import { useCallback } from 'react';
+import { Download, Loader2, Play, Save, Trash2, Upload, PlaySquare } from 'lucide-react';
+import { executeGraph } from '../api';
 import { useCanvasStore } from '../store';
+import type { NodeInstance, ControlLink } from '../types';
 
 const STORAGE_KEY = 'wf-canvas-project';
 
 export default function Toolbar() {
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
-  const autoConnect = useCanvasStore((s) => s.autoConnect);
   const clearCanvas = useCanvasStore((s) => s.clearCanvas);
   const loadProject = useCanvasStore((s) => s.loadProject);
-  const toGraphPayload = useCanvasStore((s) => s.toGraphPayload);
   const isExecuting = useCanvasStore((s) => s.isExecuting);
   const setIsExecuting = useCanvasStore((s) => s.setIsExecuting);
   const setExecResults = useCanvasStore((s) => s.setExecResults);
   const setExecError = useCanvasStore((s) => s.setExecError);
-  const [templates, setTemplates] = useState<TemplateDef[]>([]);
-  const [showTemplates, setShowTemplates] = useState(false);
+  const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds);
+  const getSelectedGraph = useCanvasStore((s) => s.getSelectedGraph);
 
-  const handleRun = useCallback(async () => {
+  const buildGraph = useCallback((nodeIds: string[]) => {
+    const nodeSet = new Set(nodeIds);
+    const filteredNodes = nodes.filter((n) => nodeSet.has(n.id));
+    const filteredEdges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
+    return {
+      schemaVersion: '2.1' as const,
+      nodes: filteredNodes.map((n) => ({
+        id: n.id,
+        manifestId: n.data.nodeTypeId,
+        name: n.data.nodeTypeId,
+        position: { x: n.position.x, y: n.position.y },
+        inputs: {},
+        config: (n.data as Record<string, unknown>).config ?? {},
+        state: undefined,
+      }) as NodeInstance),
+      links: [] as ControlLink[],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    };
+  }, [nodes, edges]);
+
+  const handleRunAll = useCallback(async () => {
     if (isExecuting) return;
     setIsExecuting(true);
     setExecError(null);
     try {
-      const payload = toGraphPayload();
-      const res = await executeGraph(payload);
-      setExecResults(res.results);
+      const graph = buildGraph(nodes.map((n) => n.id));
+      const res = await executeGraph(graph);
+      setExecResults(res.results as Record<string, unknown>);
     } catch (e) {
       setExecError(e instanceof Error ? e.message : String(e));
       setExecResults(null);
     } finally {
       setIsExecuting(false);
     }
-  }, [isExecuting, setIsExecuting, setExecError, toGraphPayload, setExecResults]);
+  }, [isExecuting, nodes, buildGraph, setIsExecuting, setExecError, setExecResults]);
+
+  const handleRunSelected = useCallback(async () => {
+    if (isExecuting || selectedNodeIds.length === 0) return;
+    setIsExecuting(true);
+    setExecError(null);
+    try {
+      const graph = buildGraph(selectedNodeIds);
+      const res = await executeGraph(graph);
+      // 把结果回写到节点 data 中，让 NodeRenderer 显示
+      const results = res.results as Record<string, unknown>;
+      if (results) {
+        const store = useCanvasStore.getState();
+        for (const [nodeId, output] of Object.entries(results)) {
+          const node = store.nodes.find((n) => n.id === nodeId);
+          if (node) {
+            const outData = output as Record<string, unknown>;
+            const status = outData?.status as string || 'done';
+            store.updateNodeData(nodeId, '_status', status);
+            store.updateNodeData(nodeId, '_outputs', outData?.outputs || {});
+          }
+        }
+      }
+      setExecResults(results);
+    } catch (e) {
+      setExecError(e instanceof Error ? e.message : String(e));
+      setExecResults(null);
+    } finally {
+      setIsExecuting(false);
+    }
+  }, [isExecuting, selectedNodeIds, buildGraph, setIsExecuting, setExecError, setExecResults]);
 
   const handleSave = useCallback(() => {
     const project = { nodes, edges, savedAt: new Date().toISOString() };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
-    // 同时下载为 .json 文件
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -53,18 +102,11 @@ export default function Toolbar() {
 
   const handleLoad = useCallback(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      setExecError('localStorage 中没有保存的项目');
-      return;
-    }
+    if (!raw) { setExecError('localStorage 中没有保存的项目'); return; }
     try {
       const project = JSON.parse(raw);
-      if (project.nodes && project.edges) {
-        loadProject(project.nodes, project.edges);
-      }
-    } catch {
-      setExecError('项目加载失败：数据损坏');
-    }
+      if (project.nodes && project.edges) loadProject(project.nodes, project.edges);
+    } catch { setExecError('项目加载失败：数据损坏'); }
   }, [loadProject, setExecError]);
 
   const handleImport = useCallback(() => {
@@ -78,85 +120,32 @@ export default function Toolbar() {
       reader.onload = () => {
         try {
           const project = JSON.parse(reader.result as string);
-          if (project.nodes && project.edges) {
-            loadProject(project.nodes, project.edges);
-          } else {
-            setExecError('文件格式不正确');
-          }
-        } catch {
-          setExecError('文件解析失败');
-        }
+          if (project.nodes && project.edges) loadProject(project.nodes, project.edges);
+          else setExecError('文件格式不正确');
+        } catch { setExecError('文件解析失败'); }
       };
       reader.readAsText(file);
     };
     input.click();
   }, [loadProject, setExecError]);
 
-  const handleTemplates = useCallback(async () => {
-    if (templates.length > 0) {
-      setShowTemplates(!showTemplates);
-      return;
-    }
-    try {
-      const res = await fetchTemplates();
-      setTemplates(res.templates);
-      setShowTemplates(true);
-    } catch (e) {
-      setExecError(e instanceof Error ? e.message : String(e));
-    }
-  }, [templates, setExecError, showTemplates]);
-
-  const loadTemplate = useCallback(
-    (tpl: TemplateDef) => {
-      const rNodes = tpl.nodes.map((n) => ({
-        ...n,
-        type: 'generic',
-        data: { ...n.data, nodeTypeId: n.nodeTypeId },
-      }));
-      const rEdges = tpl.edges.map((e, i) => ({
-        id: `e-tpl-${i}`,
-        source: e.source,
-        sourceHandle: `out-${e.sourcePort}`,
-        target: e.target,
-        targetHandle: `in-${e.targetPort}`,
-      }));
-      loadProject(rNodes as any, rEdges as any);
-      setShowTemplates(false);
-    },
-    [loadProject],
-  );
-
   return (
     <header className="toolbar">
       <div className="toolbar__brand">🎬 无限画布</div>
       <div className="toolbar__actions">
-        <button className="btn" onClick={autoConnect} title="按类型匹配自动连线（可再手动调整）">
-          <Wand2 size={14} /> 自动连线
-        </button>
-        <button className="btn btn--primary" onClick={handleRun} disabled={isExecuting}>
+        <button className="btn btn--primary" onClick={handleRunAll} disabled={isExecuting}>
           {isExecuting ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
-          {isExecuting ? '执行中…' : '执行画布'}
+          {isExecuting ? '执行中…' : '执行全部'}
         </button>
-        <span className="toolbar__sep" />
-        <button className="btn" onClick={handleTemplates} title="从模板开始">
-          <LayoutTemplate size={14} /> 模板
+        <button
+          className="btn"
+          onClick={handleRunSelected}
+          disabled={isExecuting || selectedNodeIds.length === 0}
+          title="框选节点后执行选中部分"
+        >
+          {isExecuting ? <Loader2 size={14} className="spin" /> : <PlaySquare size={14} />}
+          {`执行选中${selectedNodeIds.length > 0 ? ` (${selectedNodeIds.length})` : ''}`}
         </button>
-        {showTemplates && (
-          <div className="toolbar__tpl-dropdown">
-            {templates.length === 0 && <div className="toolbar__tpl-item">无可用模板</div>}
-            {templates.map((tpl) => (
-              <button
-                key={tpl.id}
-                className="toolbar__tpl-item"
-                onClick={() => loadTemplate(tpl)}
-              >
-                <strong>{tpl.name}</strong>
-                <br />
-                <small>{tpl.description}</small>
-              </button>
-            ))}
-          </div>
-        )}
         <span className="toolbar__sep" />
         <button className="btn" onClick={handleSave} title="保存到本地（.json 文件下载 + localStorage）">
           <Save size={14} /> 保存

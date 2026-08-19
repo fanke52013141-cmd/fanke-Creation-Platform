@@ -1,4 +1,4 @@
-"""无限画布 · 后端 API（FastAPI）。
+"""无限画布 · 后端 API（FastAPI）v2.1。
 
 启动（开发）：
     cd backend
@@ -7,6 +7,9 @@
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -14,15 +17,13 @@ from pydantic import BaseModel
 
 from .artifacts import asset_store
 from .chat.session import sessions
-from .defs import artifact_types, load_node_defs
-from .engine.connections import is_valid_connection
-from .engine.derive import derive_edges
+from .registry import load_all_manifests, manifest_ids, check_v12, get_manifest
+from .engine.graph_model import validate_graph, topological_layers, resolve_body
 from .engine.execute import execute
-from .types import Graph
+from .types import Graph, NodeInstance, ControlLink
 
-app = FastAPI(title="无限画布 API", version="0.1.0")
+app = FastAPI(title="无限画布 API", version="2.1.0")
 
-# 开发期前端地址（Vite 默认 5173）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -31,71 +32,83 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 静态图片资源（资产库文件，/assets/... 对外访问）
 app.mount("/assets", StaticFiles(directory=asset_store.root), name="assets")
+
+# ============ V12 启动断言 ============
+
+missing = check_v12()
+if missing:
+    import logging
+    logging.warning(f"[V12] 模板引用了不存在的 manifestId: {missing}")
+
+
+# ============ 节点定义 API ============
 
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"ok": True, "app": "无限画布", "version": "0.1.0"}
+    return {"ok": True, "app": "无限画布", "version": "2.1.0"}
 
 
 @app.get("/api/nodes")
 async def nodes() -> dict:
-    """返回全部节点定义（前端画布渲染 + 加节点面板的数据源）。"""
-    defs = load_node_defs()
+    """返回全部 10 个节点定义（前端画布渲染 + 节点面板的数据源）。"""
+    manifests = load_all_manifests()
     return {
-        "nodes": [d.model_dump() for d in defs.values()],
-        "artifactTypes": artifact_types(),
+        "nodes": [m.model_dump() for m in manifests.values()],
+        "manifestIds": manifest_ids(),
     }
 
 
-@app.get("/api/templates")
-async def templates() -> dict:
-    """返回模板列表（预置的流程模板，如一键加载广告制作流程）。"""
-    import json
-    from pathlib import Path
-
-    p = Path(__file__).resolve().parents[2] / "templates.json"
-    if p.exists():
-        with open(p, encoding="utf-8") as f:
-            return json.load(f)
-    return {"templates": []}
+@app.get("/api/manifests/{manifest_id}")
+async def get_node_manifest(manifest_id: str) -> dict:
+    m = get_manifest(manifest_id)
+    if not m:
+        raise HTTPException(status_code=404, detail=f"manifest not found: {manifest_id}")
+    return m.model_dump()
 
 
-class ConnectionCheck(BaseModel):
-    sourceTypeId: str
-    sourceHandle: str
-    targetTypeId: str
-    targetHandle: str
+# ============ 执行 API ============
 
 
-@app.post("/api/validate-connection")
-async def validate_connection(req: ConnectionCheck) -> dict:
-    """后端兜底连线校验（前端拖拽时已用同构规则校验）。"""
-    return {
-        "valid": is_valid_connection(
-            req.sourceTypeId, req.sourceHandle, req.targetTypeId, req.targetHandle
-        )
-    }
-
-
-@app.post("/api/derive")
-async def derive(graph: Graph) -> dict:
-    """自动派生连线（流程图模式）。"""
-    return {"edges": [e.model_dump() for e in derive_edges(graph.nodes)]}
+class ExecuteRequest(BaseModel):
+    graph: dict
 
 
 @app.post("/api/execute")
-async def execute_graph(graph: Graph) -> dict:
-    """执行画布图：分层并发 + 按节点缓存 + 环检测。"""
+async def execute_graph(req: ExecuteRequest) -> dict:
+    """执行画布图（v2.1 新格式：nodes + links + inputs/config）。"""
+    graph = Graph.model_validate(req.graph)
+
+    # 校验
+    manifests = load_all_manifests()
+    issues = validate_graph(graph, manifests)
+    errors = [i for i in issues if i.level == "error"]
+    if errors:
+        return {"results": {}, "errors": [e.model_dump() for e in errors]}
+
     results = await execute(graph)
-    return {"results": results}
+
+    return {"results": results, "errors": []}
 
 
-# ---------------------------------------------------------------------------
-# 聊天 API（P1：Chat 节点右侧聊天面板）
-# ---------------------------------------------------------------------------
+# ============ 校验 API ============
+
+
+class ValidateRequest(BaseModel):
+    graph: dict
+
+
+@app.post("/api/validate")
+async def validate_graph_endpoint(req: ValidateRequest) -> dict:
+    """校验图，返回所有问题（V1-V14）。"""
+    graph = Graph.model_validate(req.graph)
+    manifests = load_all_manifests()
+    issues = validate_graph(graph, manifests)
+    return {"issues": [i.model_dump() for i in issues]}
+
+
+# ============ 聊天 API（复用现有） ============
 
 
 class ChatSessionCreate(BaseModel):
@@ -110,7 +123,6 @@ class ChatMessageSend(BaseModel):
 
 @app.post("/api/chat/sessions")
 async def create_chat_session(req: ChatSessionCreate) -> dict:
-    """按画布节点实例创建/获取会话（幂等）。"""
     try:
         s = sessions.get_or_create(req.nodeId, req.nodeTypeId, req.nodeData)
     except ValueError as exc:
@@ -143,69 +155,47 @@ async def get_chat_products(session_id: str) -> dict:
 
 @app.post("/api/chat/sessions/{session_id}/messages")
 async def send_chat_message(session_id: str, req: ChatMessageSend) -> dict:
-    """发一条用户消息，返回 assistant 回复 + 解析出的产物。"""
     if not req.content.strip():
         raise HTTPException(status_code=400, detail="消息不能为空")
     try:
         return await _send_message_async(session_id, req.content)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="session not found") from exc
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
 
 
 async def _send_message_async(session_id: str, content: str) -> dict:
-    """LLM 调用是同步阻塞的，丢到线程池避免卡住事件循环。"""
     import asyncio
-
     return await asyncio.to_thread(sessions.send_message, session_id, content)
 
 
-# ---------------------------------------------------------------------------
-# 资产 API（P2）
-# ---------------------------------------------------------------------------
+# ============ 资产 API（复用现有） ============
 
 
 @app.get("/api/assets")
 async def list_assets() -> dict:
-    """列出全部资产（含 head 版本与版本数）。"""
     return {"assets": asset_store.list_assets()}
 
 
 @app.get("/api/assets/{asset_id}")
 async def get_asset(asset_id: str) -> dict:
-    """查单资产，含全部版本。"""
     versions = asset_store.versions(asset_id)
     if not versions:
         raise HTTPException(status_code=404, detail="asset not found")
-    return {
-        "assetId": asset_id,
-        "versions": [v.to_dict() for v in versions],
-        "head": versions[-1].to_dict(),
-    }
+    return {"assetId": asset_id, "versions": [v.to_dict() for v in versions], "head": versions[-1].to_dict()}
 
 
 @app.post("/api/assets/upload")
-async def upload_asset(
-    file: UploadFile,
-    assetId: str | None = None,
-    title: str = "",
-) -> dict:
-    """人工导入一个文件为资产（版本化）。multipart 表单。"""
+async def upload_asset(file: UploadFile, assetId: str | None = None, title: str = "") -> dict:
     import mimetypes
     from .artifacts import new_asset_id
-
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="空文件")
     mime = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/octet-stream"
     aid = assetId or new_asset_id("ast")
-    version = asset_store.create_revision(
-        aid,
-        content,
-        mime,
-        source={"kind": "upload", "filename": file.filename or "", "title": title},
-    )
+    version = asset_store.create_revision(aid, content, mime, source={"kind": "upload", "filename": file.filename or "", "title": title})
     return {"assetId": aid, "version": version.to_dict(), "url": version.url}
 
 
@@ -214,13 +204,9 @@ async def list_asset_versions(asset_id: str) -> dict:
     versions = asset_store.versions(asset_id)
     if not versions:
         raise HTTPException(status_code=404, detail="asset not found")
-    return {
-        "assetId": asset_id,
-        "versions": [v.to_dict() for v in versions],
-    }
+    return {"assetId": asset_id, "versions": [v.to_dict() for v in versions]}
 
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

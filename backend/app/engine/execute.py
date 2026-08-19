@@ -1,183 +1,285 @@
-"""执行引擎：拓扑分层 + 每层并发 + 按节点缓存 + 环检测（仿 LangFlow Graph.process）。
+"""执行引擎（v2.1）：新 Graph 格式（nodes + links + ref 解析）。
 
-P0 阶段：
-- auto 节点（build_storyboard_packets / package_output）真实执行；
-- chat / review / generator 节点由 runtime 占位，P1/P2 接入真实模型后替换。
+与 frontend/src/engine/execute.ts 同构。
 """
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import json
+from typing import Any
 
-from ..defs import load_node_defs
-from ..nodes.runtime import run_build
-from ..types import Graph
-from .layers import topological_layers
+from ..registry import get_manifest, get_builder, resolve_node_manifest, load_all_manifests
+from ..types import Graph, NodeInstance, NodeManifest, NodeState
+from .graph_model import topological_layers, resolve_body, derive_ref_edges
+from .ref_engine import resolve_node_inputs, resolve_ref, parse_ref
+
+# ============ 缓存 ============
+
+_cache: dict[str, Any] = {}
 
 
-def _cache_key(node_type_id: str, inputs: dict) -> str:
+def _cache_key(manifest: NodeManifest, config: dict, resolved_inputs: dict) -> str:
     blob = json.dumps(
-        {"type": node_type_id, "inputs": inputs},
-        sort_keys=True,
-        ensure_ascii=False,
-        default=str,
+        {"type": manifest.id, "config": config, "inputs": resolved_inputs},
+        sort_keys=True, ensure_ascii=False, default=str,
     )
-    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+    return "kv:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
-async def execute(graph: Graph) -> dict[str, dict]:
-    """执行画布图，返回 {nodeId: 产出物}。
+# ============ 主入口 ============
 
-    缓存策略：按 (节点类型 + 输入内容 hash) 缓存；环内节点自动关闭缓存
-    （避免死循环读旧值）；控制流（review 回流）不走缓存层。
+
+async def execute(graph: Graph) -> dict[str, Any]:
+    """执行画布图，返回 {nodeId: {outputs, status, error}}。
+
+    1. 拓扑排序（数据引用边）
+    2. 逐层并发执行 instant 节点
+    3. interactive 节点挂起
+    4. 循环体展开执行
+    5. 缓存 + 过期
     """
-    defs = load_node_defs()
+    _node_states: dict[str, dict[str, Any]] = {}
+    _manifests = load_all_manifests()
+
+    # 构建数据引用边
+    ref_edges = derive_ref_edges(graph)
     node_ids = [n.id for n in graph.nodes]
-    edges = [(e.source, e.target) for e in graph.edges]
-    layers, cycle_nodes = topological_layers(node_ids, edges)
+    edge_list = [(s, t) for s, t in ref_edges]
+    layers, _ = topological_layers(node_ids, edge_list)
 
-    results: dict[str, dict] = {}
-    cache: dict[str, dict] = {}
+    # 确定 body 节点（循环体内的节点，应被循环引擎控制而非拓扑序执行）
+    body_node_ids: set[str] = set()
+    for link in graph.links:
+        if link.kind == "drive":
+            loop_node = next((n for n in graph.nodes if n.id == link.source), None)
+            if loop_node:
+                body = resolve_body(loop_node, graph, link)
+                for bn in body:
+                    body_node_ids.add(bn.id)
 
+    # 执行（跳过 body 节点，它们由循环引擎单独控制）
     for layer in layers:
-        await asyncio.gather(
-            *[
-                _run_node(n, graph, results, cache, cycle_nodes, defs)
-                for n in graph.nodes
-                if n.id in layer
-            ]
-        )
+        await asyncio.gather(*[
+            _run_node(n, graph, _node_states, _manifests, body_node_ids)
+            for n in graph.nodes if n.id in layer and n.id not in body_node_ids
+        ])
 
-    # 环内节点：层执行结束后补跑一次（确定性首次执行）
-    if cycle_nodes:
-        await asyncio.gather(
-            *[
-                _run_node(n, graph, results, cache, set(), defs)
-                for n in graph.nodes
-                if n.id in cycle_nodes and n.id not in results
-            ]
-        )
-
-    return results
+    return _node_states
 
 
 async def _run_node(
-    node,
+    node: NodeInstance,
     graph: Graph,
-    results: dict[str, dict],
-    cache: dict[str, dict],
-    cycle_nodes: set[str],
-    defs: dict,
+    node_states: dict,
+    manifests: dict[str, NodeManifest],
+    body_node_ids: set[str],
 ) -> None:
     nid = node.id
-    ndef = defs.get(node.nodeTypeId)
-    if not ndef:
-        results[nid] = {"error": f"unknown node def: {node.nodeTypeId}"}
+    manifest = get_manifest(node.manifest_id)
+    if not manifest:
+        node_states[nid] = {"status": "error", "error": f"未知 manifestId: {node.manifest_id}"}
         return
 
-    # 动态端口节点：从 node.data.ports 读取端口定义
-    if ndef.dynamicPorts:
-        ports_data = node.data.get("ports", {}) if isinstance(node.data, dict) else {}
-        input_ports = ports_data.get("inputs", [])
-    else:
-        input_ports = ndef.inputs
-
-    # 1) 解析上游输入
-    inputs: dict = {}
-    for port in input_ports:
-        # 支持 dict 或 InputPort 对象
-        port_name = port["name"] if isinstance(port, dict) else port.name
-        port_is_connection = port.get("isConnection", False) if isinstance(port, dict) else port.isConnection
-        port_array = port.get("array", False) if isinstance(port, dict) else port.array
-        port_required = port.get("required", False) if isinstance(port, dict) else port.required
-        port_label = port.get("label", port_name) if isinstance(port, dict) else (port.label or port_name)
-        port_default = port.get("defaultValue") if isinstance(port, dict) else port.defaultValue
-
-        if not port_is_connection:
-            inputs[port_name] = node.data.get(port_name, port_default)
-            continue
-        vals = [
-            results[e.source].get(e.sourcePort)
-            for e in graph.edges
-            if e.target == nid and e.targetPort == port_name and e.source in results
-        ]
-        vals = [v for v in vals if v is not None]
-        if port_array:
-            flat: list = []
-            for v in vals:
-                if isinstance(v, list):
-                    flat.extend(v)
-                else:
-                    flat.append(v)
-            inputs[port_name] = flat
-        else:
-            inputs[port_name] = vals[0] if vals else None
-        if port_required and not vals:
-            results[nid] = {"error": f"缺少必需输入: {port_label}"}
-            return
-
-    # 2) 缓存命中？
-    key = _cache_key(node.nodeTypeId, inputs)
-    if nid not in cycle_nodes and key in cache:
-        results[nid] = cache[key]
+    # interactive 节点 → 挂起
+    if manifest.execution == "interactive":
+        node_states[nid] = {"status": "awaiting-human", "outputs": {}}
         return
 
-    # 3) 调 build
+    # 解析输入
+    resolved_inputs = resolve_node_inputs(node, graph, node_states, manifests)
+
+    # 检查必填参数
+    for inp in manifest.inputs:
+        if inp.required:
+            val = resolved_inputs.get(inp.name)
+            if val is None:
+                node_states[nid] = {"status": "skipped", "outputs": {"_skipped": f"缺少必填输入: {inp.label}"}}
+                return
+
+    # 缓存检查
+    ck = _cache_key(manifest, node.config, resolved_inputs)
+    if ck in _cache:
+        node_states[nid] = {"status": "cached", "outputs": _cache[ck]}
+        return
+
+    # 执行
+    node_states[nid] = {"status": "running"}
     try:
-        out = await run_build(node, ndef, inputs)
-        results[nid] = out
-        if nid not in cycle_nodes:
-            cache[key] = out
+        # loop/branch 走 execute.py 的完整逻辑，不走 builder 的简化版
+        if manifest.kind == "loop":
+            outputs = await _execute_loop(node, graph, manifest, node_states, manifests)
+        elif manifest.kind == "branch":
+            outputs = await _execute_branch(node, manifest, resolved_inputs)
+        else:
+            builder = get_builder(node.manifest_id)
+            if builder:
+                outputs = await builder(node, manifest, resolved_inputs, node_states)
+            elif manifest.kind == "process":
+                outputs = await _mock_process(node, manifest, resolved_inputs)
+            elif manifest.kind == "generator":
+                outputs = await _mock_generator(node, manifest, resolved_inputs)
+            elif manifest.kind == "data":
+                outputs = resolved_inputs
+            elif manifest.kind == "code":
+                outputs = {"output": "// 代码节点（MVP 占位）"}
+            else:
+                outputs = resolved_inputs
 
-        # 循环节点特殊处理：遍历输出列表，对每个元素驱动下游节点执行
-        if ndef.kind == "loop":
-            # 找下游节点（以 loop 节点为 source 的边）
-            downstream = [
-                (e.target, e.targetPort)
-                for e in graph.edges
-                if e.source == nid
-            ]
-            if downstream and out:
-                # 取循环的第一个输出作为列表
-                loop_results = None
-                for val in out.values():
-                    if isinstance(val, list):
-                        loop_results = val
-                        break
-                if loop_results:
-                    # 对每个输出元素，重新构建下游输入并执行
-                    for item_idx, item in enumerate(loop_results):
-                        for dn_id, dn_port in downstream:
-                            dn_node = next((n for n in graph.nodes if n.id == dn_id), None)
-                            if not dn_node:
-                                continue
-                            dn_def = defs.get(dn_node.nodeTypeId)
-                            if not dn_def:
-                                continue
-                            # 为下游节点注入当前循环项
-                            dn_inputs = {dn_port: item}
-                            # 如果下游节点已执行过，补上它自己的其他输入
-                            if dn_id in results:
-                                existing = results[dn_id]
-                                if isinstance(existing, dict):
-                                    for k, v in existing.items():
-                                        if k not in dn_inputs:
-                                            dn_inputs[k] = v
-                            try:
-                                dn_out = await run_build(dn_node, dn_def, dn_inputs)
-                                # 合并结果：如果下游节点有多个输出，按 index 合并
-                                if dn_id in results:
-                                    existing = results[dn_id]
-                                    if isinstance(existing, dict) and isinstance(dn_out, dict):
-                                        for k, v in dn_out.items():
-                                            if isinstance(v, list):
-                                                existing[k] = existing.get(k, []) + v
-                                            else:
-                                                existing[k] = v
-                                else:
-                                    results[dn_id] = dn_out
-                            except Exception as exc2:
-                                results[dn_id] = {"error": f"循环项 {item_idx}: {type(exc2).__name__}: {exc2}"}
-    except Exception as exc:  # noqa: BLE001
-        results[nid] = {"error": f"{type(exc).__name__}: {exc}"}
+        node_states[nid] = {"status": "done", "outputs": outputs}
+        _cache[ck] = outputs
+    except Exception as exc:
+        node_states[nid] = {"status": "error", "error": f"{type(exc).__name__}: {exc}"}
+
+
+# ============ Mock 执行器 ============
+
+
+async def _mock_process(node: NodeInstance, manifest: NodeManifest, inputs: dict) -> dict:
+    """Mock 处理节点：返回占位输出。"""
+    out = {}
+    for o in manifest.outputs:
+        if o.semantic == "decision":
+            out[o.name] = {"approved": True, "reason": "Mock 审查通过"}
+        else:
+            out[o.name] = {"id": f"{node.id}-{o.name}", "title": f"Mock {o.label}", "markdown": f"（Mock 处理结果：{o.label}）"}
+    # 实例级 paramSchemas 的输出
+    if node.param_schemas and node.param_schemas.get("outputs"):
+        for ps in node.param_schemas["outputs"]:
+            if ps.semantic == "decision":
+                out[ps.name] = {"approved": True, "reason": "Mock 审查通过"}
+            else:
+                out[ps.name] = {"id": f"{node.id}-{ps.name}", "title": f"Mock {ps.label}", "markdown": f"（Mock 处理结果：{ps.label}）"}
+    return out
+
+
+async def _mock_generator(node: NodeInstance, manifest: NodeManifest, inputs: dict) -> dict:
+    """Mock 生成节点：返回占位 SVG 图片。"""
+    prompt = inputs.get("prompt", "mock prompt")
+    count = node.config.get("count", 1)
+    images = []
+    for i in range(count):
+        images.append({
+            "id": f"{node.id}-img-{i}",
+            "url": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTBlMGUwIi8+PHRleHQgeD0iMTI4IiB5PSIxMjgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIGZpbGw9IiM5OTkiIGZvbnQtc2l6ZT0iMTQiPk1vY2sgSW1hZ2U8L3RleHQ+PC9zdmc+",
+            "width": 256,
+            "height": 256,
+            "mime": "image/svg+xml",
+            "prompt": str(prompt)[:50],
+        })
+    return {"images": images, "seed": 42}
+
+
+# ============ 循环引擎 ============
+
+
+async def _execute_loop(
+    loop_node: NodeInstance,
+    graph: Graph,
+    manifest: NodeManifest,
+    node_states: dict,
+) -> dict:
+    """执行循环（有界迭代）。"""
+    # 找 drive 链接
+    drive_links = [l for l in graph.links if l.source == loop_node.id and l.kind == "drive"]
+    if not drive_links:
+        return {"output": []}
+
+    link = drive_links[0]
+    body = resolve_body(loop_node, graph, link)
+
+    mode = loop_node.config.get("mode", "count")
+    count = loop_node.config.get("count", 1)
+    max_iter = loop_node.config.get("maxIterations", 100)
+    execution = loop_node.config.get("execution", "serial")
+    parallel_limit = loop_node.config.get("parallelLimit", 3)
+    prompts_text = loop_node.config.get("prompts", "")
+
+    # 确定迭代轮次
+    if mode == "count":
+        rounds = list(range(count))
+    elif mode == "iterate-prompts":
+        prompts = [p.strip() for p in prompts_text.split("\n") if p.strip()]
+        rounds = prompts
+        if len(rounds) > max_iter:
+            return {"output": {"error": f"提示词列表长度 {len(rounds)} 超过 maxIterations={max_iter}"}}
+    else:
+        raise NotImplementedError(f"mock 暂不支持 {mode} 模式")
+
+    results = []
+    total_rounds = len(rounds)
+
+    if execution == "parallel":
+        sem = asyncio.Semaphore(parallel_limit)
+        async def run_round(i_idx, round_i_data):
+            async with sem:
+                return await _run_body_round(body, total_rounds, loop_node, graph, node_states, i_idx, round_i_data)
+        tasks = [run_round(i, rounds[i]) for i in range(total_rounds)]
+        results = await asyncio.gather(*tasks)
+    else:
+        for i in range(total_rounds):
+            r = await _run_body_round(body, total_rounds, loop_node, graph, node_states, i, rounds[i])
+            results.append(r)
+
+    return {"output": results}
+
+
+async def _run_body_round(
+    body: list,
+    total_rounds: int,
+    loop_node: NodeInstance,
+    graph: Graph,
+    node_states: dict,
+    round_idx: int,
+    round_data: Any,
+) -> dict:
+    """跑一轮循环体。"""
+    round_outputs = {}
+    # 注入计数 token（浅拷贝 config，避免副作用污染）
+    for bn in body:
+        new_config = dict(bn.config)
+        for key, val in bn.config.items():
+            if isinstance(val, str):
+                new_config[key] = val.replace("{{loop.counter}}", str(round_idx + 1)).replace("{{loop.total}}", str(total_rounds))
+        bn.config = new_config
+
+    # 执行 body 节点（拓扑序已由外部保证）
+    for bn in body:
+        if bn.manifest_id == "generator":
+            inputs = {"prompt": str(round_data) if isinstance(round_data, str) else f"Round {round_idx}", "count": 1}
+            out = await _mock_generator(bn, get_manifest(bn.manifest_id), inputs)
+            node_states[bn.id] = {"status": "done", "outputs": out}
+            round_outputs[bn.id] = out
+        elif bn.manifest_id == "process":
+            inputs = {"input": round_data}
+            manifest = get_manifest(bn.manifest_id)
+            out = await _mock_process(bn, manifest, inputs)
+            node_states[bn.id] = {"status": "done", "outputs": out}
+            round_outputs[bn.id] = out
+        else:
+            node_states[bn.id] = {"status": "done", "outputs": {"output": round_data}}
+            round_outputs[bn.id] = {"output": round_data}
+
+    return round_outputs
+
+
+# ============ 分支引擎 ============
+
+
+async def _execute_branch(
+    node: NodeInstance,
+    manifest: NodeManifest,
+    inputs: dict,
+) -> dict:
+    """执行分支：条件路由。"""
+    condition_source = node.config.get("conditionSource", "decision-input")
+    decision = inputs.get("decision", {})
+    data = inputs.get("data")
+
+    if condition_source == "decision-input":
+        if isinstance(decision, dict) and decision.get("approved") is True:
+            return {"then": data, "else": None}
+        else:
+            return {"then": None, "else": data}
+
+    return {"then": data, "else": None}

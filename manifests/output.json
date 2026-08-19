@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "v1",
+  "id": "output",
+  "kind": "output",
+  "name": "输出",
+  "nameForModel": "output",
+  "description": "终点收集器。items 参数支持多引用扇入，运行时按序拼接。批量下载/导出/转为输入组。",
+  "icon": "Download",
+  "category": "utility",
+  "execution": "instant",
+  "dynamicParams": true,
+  "inputs": [
+    { "name": "items", "label": "收集项", "type": "list", "required": false, "items": { "type": "object" } }
+  ],
+  "outputs": [],
+  "config": [
+    { "key": "format", "label": "导出格式", "type": "string", "editor": "dropdown", "defaultValue": "zip", "options": ["origin", "zip", "json"] }
+  ]
+}

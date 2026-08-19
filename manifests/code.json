@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "v1",
+  "id": "code",
+  "kind": "code",
+  "name": "代码",
+  "nameForModel": "code",
+  "description": "JavaScript 代码执行（逃逸口）。通过 Web Worker 沙箱隔离。输入参数绑定为代码变量，输出变量绑定回输出参数。",
+  "icon": "Terminal",
+  "category": "core",
+  "execution": "instant",
+  "dynamicParams": true,
+  "inputs": [],
+  "outputs": [],
+  "config": [
+    { "key": "language", "label": "语言", "type": "string", "editor": "dropdown", "defaultValue": "javascript", "options": ["javascript"] },
+    { "key": "code", "label": "代码", "type": "string", "editor": "code", "defaultValue": "" },
+    { "key": "inputBindings", "label": "输入绑定", "type": "object", "editor": "json", "defaultValue": {} },
+    { "key": "outputBindings", "label": "输出绑定", "type": "object", "editor": "json", "defaultValue": {} },
+    { "key": "timeoutMs", "label": "超时（毫秒）", "type": "integer", "editor": "number", "defaultValue": 10000 }
+  ]
+}

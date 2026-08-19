@@ -1,7 +1,7 @@
 /**
  * 后端 API 客户端（走 Vite 代理 /api -> 127.0.0.1:8000）。
  */
-import type { ExecutionResult, GraphPayload, NodeDef } from './types';
+import type { NodeManifest, Graph } from './types';
 
 const BASE = '/api';
 
@@ -33,26 +33,21 @@ export async function fetchHealth(): Promise<{ ok: boolean }> {
   return jsonFetch('/health');
 }
 
-export async function fetchNodeDefs(): Promise<{ nodes: NodeDef[]; artifactTypes: string[] }> {
+export async function fetchNodeDefs(): Promise<{ nodes: NodeManifest[]; manifestIds: string[] }> {
   return jsonFetch('/nodes');
 }
 
-export async function executeGraph(graph: GraphPayload): Promise<ExecutionResult> {
+export async function executeGraph(graph: Graph): Promise<{ results: Record<string, unknown>; errors?: unknown[] }> {
   return jsonFetch('/execute', {
     method: 'POST',
-    body: JSON.stringify(graph),
+    body: JSON.stringify({ graph }),
   });
 }
 
-export async function validateConnection(req: {
-  sourceTypeId: string;
-  sourceHandle: string;
-  targetTypeId: string;
-  targetHandle: string;
-}): Promise<{ valid: boolean }> {
-  return jsonFetch('/validate-connection', {
+export async function validateGraph(graph: Graph): Promise<{ issues: unknown[] }> {
+  return jsonFetch('/validate', {
     method: 'POST',
-    body: JSON.stringify(req),
+    body: JSON.stringify({ graph }),
   });
 }
 

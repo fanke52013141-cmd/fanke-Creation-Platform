@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "v1",
+  "id": "data",
+  "kind": "data",
+  "name": "数据",
+  "nameForModel": "data",
+  "description": "被动容器：文本/图片/资产/表格。可零输入零输出。作为手动输入点、展示点或中间存储。输出类型由 contentType 自动推导。",
+  "icon": "FileText",
+  "category": "core",
+  "execution": "instant",
+  "dynamicParams": true,
+  "inputs": [],
+  "outputs": [],
+  "config": [
+    { "key": "contentType", "label": "内容类型", "type": "string", "editor": "dropdown", "defaultValue": "text", "options": ["text", "image", "asset-ref", "table"] },
+    { "key": "value", "label": "内容", "type": "object", "editor": "hidden" },
+    { "key": "editable", "label": "允许编辑", "type": "boolean", "editor": "toggle", "defaultValue": true }
+  ]
+}

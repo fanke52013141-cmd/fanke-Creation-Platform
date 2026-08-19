@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "v1",
+  "id": "branch",
+  "kind": "branch",
+  "name": "分支",
+  "nameForModel": "branch",
+  "description": "switch 式条件路由。按决策或条件表达式将数据导向不同路径。正向路由走数据引用（输出参数），反向重跑走 rerun 控制链接。",
+  "icon": "GitBranch",
+  "category": "flow",
+  "execution": "instant",
+  "dynamicParams": false,
+  "inputs": [
+    { "name": "decision", "label": "决策", "type": "object", "required": false, "semantic": "decision" },
+    { "name": "data", "label": "数据", "type": "object", "required": false }
+  ],
+  "outputs": [
+    { "name": "then", "label": "通过", "type": "object" },
+    { "name": "else", "label": "驳回", "type": "object" }
+  ],
+  "config": [
+    { "key": "conditionSource", "label": "条件来源", "type": "string", "editor": "dropdown", "defaultValue": "decision-input", "options": ["decision-input", "expression"] },
+    { "key": "conditions", "label": "条件列表", "type": "object", "editor": "json", "defaultValue": [] },
+    { "key": "defaultRoute", "label": "默认路由", "type": "string", "editor": "text", "defaultValue": "else" }
+  ]
+}

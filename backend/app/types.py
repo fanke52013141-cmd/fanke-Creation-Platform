@@ -1,7 +1,6 @@
-"""节点类型系统：与根目录 node-defs.json（单一事实来源）对齐。
+"""节点类型系统（v2.1 定稿）—— 与 frontend/src/types.ts 完全镜像。
 
-对应 HANDOFF 第 3 节：ArtifactType / BaseNode / InputPort / OutputPort。
-TS 前端有同一套类型定义（frontend/src/types.ts），两侧字符串必须一致。
+单一事实来源：manifests/*.json。
 """
 from __future__ import annotations
 
@@ -9,99 +8,150 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-#: 所有可在连线上流动的类型（typed socket 的"形状"）
-ArtifactType = Literal[
-    "Message", "Document", "Prompt", "Shot", "Image", "Audio", "Video",
-    "Memory", "ModelRef", "Decision", "Table", "Data",
+# ============ 基础 ============
+
+NodeKind = Literal[
+    "chat", "process", "generator", "data", "code",
+    "group", "loop", "branch", "output", "preview",
 ]
 
-NodeKind = Literal["chat", "generator", "asset", "table", "auto", "review", "memory", "code", "text", "loop", "process"]
+NodeCategory = Literal["core", "flow", "utility"]
+ExecutionClass = Literal["instant", "interactive"]
 
-#: 类型重命名迁移表（仿 LangFlow TYPE_MIGRATIONS）。重命名类型时在这里登记，旧画布不失效。
-TYPE_MIGRATIONS: dict[str, str] = {}
+BaseType = Literal[
+    "string", "integer", "number", "boolean",
+    "time", "object", "list", "file",
+]
+
+FileSubType = Literal[
+    "image", "audio", "video", "document", "code", "default",
+]
+
+SemanticType = Literal[
+    "prompt", "document", "decision", "shot", "storyboard", "asset-list",
+]
+
+FieldEditor = Literal[
+    "text", "multiline", "number", "slider", "dropdown",
+    "toggle", "file", "code", "json", "hidden",
+]
+
+# ============ 参数值来源 ============
 
 
-class InputPort(BaseModel):
-    """输入插口：连线口（isConnection）或参数字段。"""
+class ParamSource(BaseModel):
+    kind: str  # "value" | "ref"
+    value: Optional[Any] = None
+    node_id: Optional[str] = None
+    output_path: Optional[str] = None
 
+
+# ============ 参数 schema ============
+
+
+class ParamSchema(BaseModel):
     name: str
-    type: ArtifactType
-    array: bool = False
+    label: str = ""
+    desc: str = ""
     required: bool = False
-    isConnection: bool = False
-    label: str = ""
-    description: str = ""
-    editor: str = "text"  # text | multiline | dropdown | slider | number | file | toggle | hidden
+    type: str  # BaseType
+    semantic: Optional[str] = None  # SemanticType
+    file_sub_type: Optional[str] = None  # FileSubType
+    items: Optional["ParamSchema"] = None
+    properties: list["ParamSchema"] = Field(default_factory=list)
+    default_from: Optional[ParamSource] = None
+    editor: Optional[str] = None  # FieldEditor
     options: list[str] = Field(default_factory=list)
-    defaultValue: Any = None
-    #: 语义标签（自动连线用）：该输入口接受哪些语义物（如 ["brief"]）。
-    #: 自动派生要求"类型兼容 AND 语义匹配"；未声明 accepts 的口不参与自动连线（只手动）。
-    accepts: list[str] = Field(default_factory=list)
 
 
-class OutputPort(BaseModel):
-    """输出插口。"""
+# ============ 配置字段 ============
 
-    name: str
-    type: ArtifactType
-    array: bool = False
+
+class ConfigField(BaseModel):
+    key: str
     label: str = ""
-    method: Optional[str] = None
-    #: 语义标签（自动连线用）：该输出口提供哪些语义物（如 ["brief"]）。
-    provides: list[str] = Field(default_factory=list)
+    desc: str = ""
+    type: str  # BaseType
+    required: bool = False
+    default_value: Optional[Any] = None
+    editor: str = "text"  # FieldEditor
+    options: list[str] = Field(default_factory=list)
+    range_min: Optional[float] = None
+    range_max: Optional[float] = None
+    range_step: Optional[float] = None
 
 
-class NodeDef(BaseModel):
-    """节点定义（node-defs.json 中每一项）。"""
+# ============ Manifest（节点定义） ============
 
+
+class NodeManifest(BaseModel):
+    schema_version: str = "v1"
     id: str
-    kind: NodeKind
-    name: str
-    icon: str = ""
+    kind: str  # NodeKind
+    name: str = ""
+    name_for_model: Optional[str] = None
     description: str = ""
-    inputs: list[InputPort] = Field(default_factory=list)
-    outputs: list[OutputPort] = Field(default_factory=list)
-    # chat
-    systemPrompt: Optional[str] = None
-    model: Optional[dict[str, Any]] = None
-    allowUpload: bool = False
-    # auto
-    fn: Optional[str] = None
-    # generator
-    modality: Optional[str] = None
-    providerId: Optional[str] = None
-    modelId: Optional[str] = None
-    params: dict[str, Any] = Field(default_factory=dict)
-    # review
-    onRejectNodeId: Optional[str] = None
-    # table
-    editorHint: Optional[str] = None
-    # 通用节点
-    dynamicPorts: bool = False
-    code: Optional[str] = None
+    icon: str = ""
+    category: str = "core"  # NodeCategory
+    execution: str = "instant"  # ExecutionClass
+    dynamic_params: bool = False
+    inputs: list[ParamSchema] = Field(default_factory=list)
+    outputs: list[ParamSchema] = Field(default_factory=list)
+    config: list[ConfigField] = Field(default_factory=list)
 
 
-class GraphNode(BaseModel):
-    """画布上的节点实例（文档中序列化）。"""
+# ============ 实例状态 ============
 
+
+class NodeState(BaseModel):
+    status: str = "idle"  # NodeStatus
+    outputs: dict[str, Any] = Field(default_factory=dict)
+    error: Optional[str] = None
+    progress: Optional[float] = None
+    started_at: Optional[float] = None
+    finished_at: Optional[float] = None
+
+
+# ============ 实例 ============
+
+
+class NodeInstance(BaseModel):
     id: str
-    nodeTypeId: str = Field(..., description="对应 node-defs.json 里的节点 id")
-    position: dict[str, float] = Field(default_factory=lambda: {"x": 0.0, "y": 0.0})
-    data: dict[str, Any] = Field(default_factory=dict)
+    manifest_id: str
+    name: str = ""
+    position: dict[str, float] = Field(default_factory=lambda: {"x": 0, "y": 0})
+    inputs: dict[str, Any] = Field(default_factory=dict)  # ParamSource | list[ParamSource]
+    config: dict[str, Any] = Field(default_factory=dict)
+    param_schemas: Optional[dict[str, Any]] = None  # {inputs: ParamSchema[], outputs: ParamSchema[]}
+    state: Optional[NodeState] = None
 
 
-class Edge(BaseModel):
-    """一条连线（实例级）。"""
+# ============ 控制链接 ============
 
-    source: str
-    sourcePort: str
-    target: str
-    targetPort: str
-    via: ArtifactType
+
+class ControlLink(BaseModel):
+    source: str  # from
+    target: str  # to
+    kind: str  # "drive" | "rerun"
+    label: Optional[str] = None
+
+
+# ============ 图 ============
 
 
 class Graph(BaseModel):
-    """一个画布文档：{nodes, edges}（viewport 前端保存）。"""
+    schema_version: str = "2.1"
+    nodes: list[NodeInstance] = Field(default_factory=list)
+    links: list[ControlLink] = Field(default_factory=list)
+    viewport: dict[str, float] = Field(default_factory=lambda: {"x": 0, "y": 0, "zoom": 1})
+    node_states: Optional[dict[str, NodeState]] = None
 
-    nodes: list[GraphNode] = Field(default_factory=list)
-    edges: list[Edge] = Field(default_factory=list)
+
+# ============ 校验结果 ============
+
+
+class RefIssue(BaseModel):
+    level: str  # "error" | "warn"
+    message: str
+    node_id: Optional[str] = None
+    rule: Optional[str] = None

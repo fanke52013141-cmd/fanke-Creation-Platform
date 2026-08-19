@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "v1",
+  "id": "preview",
+  "kind": "preview",
+  "name": "预览",
+  "nameForModel": "preview",
+  "description": "图片/视频人工质检站。大图预览 + 内联编辑（裁剪/遮罩/扩图/宫格切分），确认后才放行到下游。",
+  "icon": "Eye",
+  "category": "utility",
+  "execution": "interactive",
+  "dynamicParams": false,
+  "inputs": [
+    { "name": "media", "label": "媒体", "type": "file", "required": true, "fileSubType": "default" }
+  ],
+  "outputs": [
+    { "name": "output", "label": "确认输出", "type": "file", "fileSubType": "default" }
+  ],
+  "config": [
+    { "key": "editMode", "label": "编辑模式", "type": "string", "editor": "dropdown", "defaultValue": "none", "options": ["none", "crop", "mask", "expand", "grid-split"] }
+  ]
+}

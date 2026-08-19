@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "v1",
+  "id": "chat",
+  "kind": "chat",
+  "name": "对话",
+  "nameForModel": "chat",
+  "description": "多轮 LLM 对话，保留历史，产出结构化文档。点击节点弹出右侧聊天面板，人机协作产出。",
+  "icon": "MessageSquare",
+  "category": "core",
+  "execution": "interactive",
+  "dynamicParams": true,
+  "inputs": [
+    { "name": "refs", "label": "参考文档", "type": "list", "required": false, "items": { "type": "file", "fileSubType": "document" }, "semantic": "document" }
+  ],
+  "outputs": [],
+  "config": [
+    { "key": "systemPrompt", "label": "系统提示词", "type": "string", "editor": "multiline", "defaultValue": "" },
+    { "key": "model", "label": "模型", "type": "object", "required": true, "editor": "dropdown" },
+    { "key": "temperature", "label": "温度", "type": "number", "editor": "slider", "defaultValue": 0.7, "range": { "min": 0, "max": 2, "step": 0.1 } },
+    { "key": "maxTokens", "label": "最大输出 Token", "type": "integer", "editor": "number" },
+    { "key": "allowUpload", "label": "允许上传文件", "type": "boolean", "editor": "toggle", "defaultValue": false },
+    { "key": "memoryRetention", "label": "记忆保留轮数", "type": "integer", "editor": "number", "defaultValue": 0 }
+  ]
+}
